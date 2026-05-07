@@ -34,13 +34,46 @@ export type Student = {
   name: string
   department: string
   phone: string
-  score: number | null
+  midterm: number | null
+  final: number | null
+  attendance: number | null
+  // 003 마이그레이션 이후 사용 안 함. score 컬럼은 호환을 위해 일정 기간 유지.
+  score?: number | null
   role: Role
   created_at: string
+}
+
+export type ClassSettings = {
+  id: number
+  midterm_weight: number
+  final_weight: number
+  attendance_weight: number
+  updated_at?: string
 }
 
 export type ClassStats = {
   avg_score: number | null
   max_score: number | null
   total_count: number
+}
+
+export type ScoreField = 'midterm' | 'final' | 'attendance'
+
+export const SCORE_LABEL: Record<ScoreField, string> = {
+  midterm: '중간',
+  final: '기말',
+  attendance: '출석',
+}
+
+// 가중치 적용 최종점수. 셋 중 하나라도 NULL이면 null 반환.
+export function calcFinalScore(
+  s: Pick<Student, 'midterm' | 'final' | 'attendance'>,
+  w: Pick<ClassSettings, 'midterm_weight' | 'final_weight' | 'attendance_weight'>,
+): number | null {
+  if (s.midterm == null || s.final == null || s.attendance == null) return null
+  const total =
+    s.midterm * w.midterm_weight +
+    s.final * w.final_weight +
+    s.attendance * w.attendance_weight
+  return Math.round((total / 100) * 100) / 100 // 소수 둘째자리
 }

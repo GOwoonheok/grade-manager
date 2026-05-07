@@ -19,8 +19,12 @@ const empty = {
   name: '',
   department: '',
   phone: '',
-  score: '',
+  midterm: '',
+  final: '',
+  attendance: '',
 }
+
+type FormState = typeof empty
 
 export default function StudentFormModal({
   open,
@@ -29,7 +33,7 @@ export default function StudentFormModal({
   onSaved,
 }: Props) {
   const isEdit = !!initial
-  const [form, setForm] = useState(empty)
+  const [form, setForm] = useState<FormState>(empty)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
 
@@ -40,7 +44,9 @@ export default function StudentFormModal({
         name: initial.name,
         department: initial.department,
         phone: initial.phone,
-        score: initial.score?.toString() ?? '',
+        midterm: initial.midterm?.toString() ?? '',
+        final: initial.final?.toString() ?? '',
+        attendance: initial.attendance?.toString() ?? '',
       })
     } else {
       setForm(empty)
@@ -50,17 +56,32 @@ export default function StudentFormModal({
 
   if (!open) return null
 
-  const upd = (k: keyof typeof empty, v: string) =>
+  const upd = (k: keyof FormState, v: string) =>
     setForm((p) => ({ ...p, [k]: v }))
+
+  const parseScore = (
+    raw: string,
+    label: string,
+  ): { value: number | null; error: string | null } => {
+    const s = raw.trim()
+    if (s === '') return { value: null, error: null }
+    const n = Number(s)
+    if (isNaN(n) || n < 0 || n > 100)
+      return { value: null, error: `${label} 점수는 0~100 사이 숫자여야 합니다.` }
+    return { value: n, error: null }
+  }
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setError(null)
     setSubmitting(true)
 
-    const scoreNum = form.score === '' ? null : Number(form.score)
-    if (scoreNum !== null && (isNaN(scoreNum) || scoreNum < 0 || scoreNum > 100)) {
-      setError('점수는 0~100 사이 숫자여야 합니다.')
+    const m = parseScore(form.midterm, '중간')
+    const f = parseScore(form.final, '기말')
+    const a = parseScore(form.attendance, '출석')
+    const firstErr = m.error || f.error || a.error
+    if (firstErr) {
+      setError(firstErr)
       setSubmitting(false)
       return
     }
@@ -74,7 +95,9 @@ export default function StudentFormModal({
             name: form.name.trim(),
             department: form.department.trim(),
             phone: form.phone.trim(),
-            score: scoreNum,
+            midterm: m.value,
+            final: f.value,
+            attendance: a.value,
           })
           .eq('id', initial.id)
         if (updErr) throw updErr
@@ -83,7 +106,6 @@ export default function StudentFormModal({
         const phone = form.phone.trim()
         const email = studentNumberToEmail(studentNumber)
 
-        // 1. Auth 사용자 생성 (보조 클라이언트로 — 우리 세션 안 바뀜)
         const { data: signUpData, error: signUpErr } =
           await supabaseSignup.auth.signUp({
             email,
@@ -93,14 +115,15 @@ export default function StudentFormModal({
         const newUserId = signUpData.user?.id
         if (!newUserId) throw new Error('사용자 ID를 가져오지 못했습니다.')
 
-        // 2. students 테이블에 등록 (교수 세션으로 — RLS 통과)
         const { error: insErr } = await supabase.from('students').insert({
           id: newUserId,
           student_number: studentNumber,
           name: form.name.trim(),
           department: form.department.trim(),
           phone,
-          score: scoreNum,
+          midterm: m.value,
+          final: f.value,
+          attendance: a.value,
           role: 'student',
         })
         if (insErr) throw insErr
@@ -119,7 +142,7 @@ export default function StudentFormModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between p-5 border-b">
           <h2 className="text-lg font-semibold text-gray-800">
             {isEdit ? '학생 정보 수정' : '학생 추가'}
@@ -132,7 +155,7 @@ export default function StudentFormModal({
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto">
           <Field label="학번" required>
             <input
               type="text"
@@ -167,7 +190,11 @@ export default function StudentFormModal({
             />
           </Field>
 
-          <Field label="연락처" required hint={!isEdit ? '초기 비밀번호로 사용됩니다' : undefined}>
+          <Field
+            label="연락처"
+            required
+            hint={!isEdit ? '초기 비밀번호로 사용됩니다' : undefined}
+          >
             <input
               type="text"
               value={form.phone}
@@ -178,18 +205,44 @@ export default function StudentFormModal({
             />
           </Field>
 
-          <Field label="점수" hint="비워두면 미입력 처리">
-            <input
-              type="number"
-              step="0.1"
-              min="0"
-              max="100"
-              value={form.score}
-              onChange={(e) => upd('score', e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-              placeholder="0~100"
-            />
-          </Field>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="중간" hint="0~100">
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                max="100"
+                value={form.midterm}
+                onChange={(e) => upd('midterm', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                placeholder="-"
+              />
+            </Field>
+            <Field label="기말" hint="0~100">
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                max="100"
+                value={form.final}
+                onChange={(e) => upd('final', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                placeholder="-"
+              />
+            </Field>
+            <Field label="출석" hint="0~100">
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                max="100"
+                value={form.attendance}
+                onChange={(e) => upd('attendance', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                placeholder="-"
+              />
+            </Field>
+          </div>
 
           {error && (
             <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">

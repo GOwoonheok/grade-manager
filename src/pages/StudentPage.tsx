@@ -1,21 +1,29 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   AlertCircle,
+  CalendarCheck,
   CheckCircle2,
   GraduationCap,
   Key,
   LogOut,
+  Sparkles,
   Trophy,
   Users,
   X,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { supabase, type ClassStats } from '../lib/supabase'
+import {
+  calcFinalScore,
+  supabase,
+  type ClassSettings,
+  type ClassStats,
+} from '../lib/supabase'
 
 export default function StudentPage() {
   const { profile, signOut } = useAuth()
   const [stats, setStats] = useState<ClassStats | null>(null)
   const [statsLoading, setStatsLoading] = useState(true)
+  const [settings, setSettings] = useState<ClassSettings | null>(null)
 
   useEffect(() => {
     supabase
@@ -25,7 +33,24 @@ export default function StudentPage() {
         setStats((data as ClassStats) ?? null)
         setStatsLoading(false)
       })
+    supabase
+      .from('class_settings')
+      .select('*')
+      .eq('id', 1)
+      .single()
+      .then(({ data }) => {
+        if (data) setSettings(data as ClassSettings)
+      })
   }, [])
+
+  const finalScore = useMemo(() => {
+    if (!profile || !settings) return null
+    return calcFinalScore(profile, settings)
+  }, [profile, settings])
+
+  const ratioText = settings
+    ? `${settings.midterm_weight}·${settings.final_weight}·${settings.attendance_weight}`
+    : ''
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -58,26 +83,53 @@ export default function StudentPage() {
           <p className="text-sm text-gray-600 mt-1">{profile?.department}</p>
         </section>
 
-        {/* 점수 카드 */}
-        <section className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {/* 내 점수 4종 */}
+        <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <ScoreCard
-            label="내 점수"
-            value={profile?.score ?? null}
-            color="indigo"
-            icon={<GraduationCap size={20} />}
+            label="중간"
+            value={profile?.midterm ?? null}
+            color="gray"
+            icon={<GraduationCap size={18} />}
           />
           <ScoreCard
-            label="반 평균"
+            label="기말"
+            value={profile?.final ?? null}
+            color="gray"
+            icon={<GraduationCap size={18} />}
+          />
+          <ScoreCard
+            label="출석"
+            value={profile?.attendance ?? null}
+            color="gray"
+            icon={<CalendarCheck size={18} />}
+          />
+          <ScoreCard
+            label="최종"
+            value={finalScore}
+            color="indigo"
+            icon={<Sparkles size={18} />}
+            sub={settings ? `비율 ${ratioText}` : ''}
+          />
+        </section>
+
+        {/* 반 통계 */}
+        <section className="grid grid-cols-2 gap-3">
+          <ScoreCard
+            label="반 평균 (최종)"
             value={statsLoading ? null : stats?.avg_score ?? null}
             color="gray"
-            icon={<Users size={20} />}
-            sub={!statsLoading && stats ? `${stats.total_count}명 기준` : ''}
+            icon={<Users size={18} />}
+            sub={
+              !statsLoading && stats?.total_count
+                ? `${stats.total_count}명 기준`
+                : ''
+            }
           />
           <ScoreCard
-            label="반 최고점"
+            label="반 최고점 (최종)"
             value={statsLoading ? null : stats?.max_score ?? null}
             color="amber"
-            icon={<Trophy size={20} />}
+            icon={<Trophy size={18} />}
           />
         </section>
 
@@ -106,15 +158,18 @@ function ScoreCard({
     gray: 'bg-gray-100 text-gray-700',
     amber: 'bg-amber-50 text-amber-700',
   }
+  const valueColor = color === 'indigo' ? 'text-indigo-700' : 'text-gray-900'
   return (
-    <div className="bg-white rounded-2xl shadow-sm p-5">
+    <div className="bg-white rounded-2xl shadow-sm p-4">
       <div className="flex items-center justify-between mb-2">
-        <p className="text-sm font-medium text-gray-500">{label}</p>
-        <div className={`rounded-lg p-1.5 ${colorMap[color]}`}>{icon}</div>
+        <p className="text-xs font-medium text-gray-500">{label}</p>
+        <div className={`rounded-lg p-1 ${colorMap[color]}`}>{icon}</div>
       </div>
-      <p className="text-3xl font-bold tabular-nums text-gray-900">
+      <p className={`text-2xl font-bold tabular-nums ${valueColor}`}>
         {value === null ? '—' : value}
-        {value !== null && <span className="text-base text-gray-400 ml-1">점</span>}
+        {value !== null && (
+          <span className="text-sm text-gray-400 ml-1">점</span>
+        )}
       </p>
       {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
     </div>

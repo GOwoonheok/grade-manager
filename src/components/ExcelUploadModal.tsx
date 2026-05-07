@@ -5,36 +5,61 @@ import {
   supabase,
   supabaseSignup,
   studentNumberToEmail,
+  SCORE_LABEL,
+  type ScoreField,
 } from '../lib/supabase'
 
-type Row = {
+type RegisterRow = {
   name: string
   department: string
   student_number: string
   phone: string
+  midterm: number | null
+  final: number | null
+  attendance: number | null
+  _error?: string
+}
+
+type ScoreRow = {
+  student_number: string
   score: number | null
   _error?: string
 }
 
-type Result = { row: Row; ok: boolean; error?: string }
+type Result = {
+  student_number: string
+  name?: string
+  ok: boolean
+  error?: string
+}
+
+export type ExcelMode =
+  | { kind: 'register' }
+  | { kind: 'score'; field: ScoreField }
 
 type Props = {
   open: boolean
+  mode: ExcelMode
   onClose: () => void
   onDone: () => void
 }
 
-const HEADER_MAP: Record<string, keyof Row> = {
+const REGISTER_HEADER_MAP: Record<string, keyof RegisterRow> = {
   이름: 'name',
   학과: 'department',
   학번: 'student_number',
   연락처: 'phone',
-  점수: 'score',
+  중간: 'midterm',
+  기말: 'final',
+  출석: 'attendance',
 }
 
-export default function ExcelUploadModal({ open, onClose, onDone }: Props) {
+const isScoreInRange = (n: number) => !isNaN(n) && n >= 0 && n <= 100
+
+export default function ExcelUploadModal({ open, mode, onClose, onDone }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
-  const [rows, setRows] = useState<Row[]>([])
+  const [registerRows, setRegisterRows] = useState<RegisterRow[]>([])
+  const [scoreRows, setScoreRows] = useState<ScoreRow[]>([])
   const [fileName, setFileName] = useState<string | null>(null)
   const [parseError, setParseError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -42,8 +67,12 @@ export default function ExcelUploadModal({ open, onClose, onDone }: Props) {
 
   if (!open) return null
 
+  const totalRows =
+    mode.kind === 'register' ? registerRows.length : scoreRows.length
+
   const reset = () => {
-    setRows([])
+    setRegisterRows([])
+    setScoreRows([])
     setFileName(null)
     setParseError(null)
     setResults([])
@@ -69,39 +98,71 @@ export default function ExcelUploadModal({ open, onClose, onDone }: Props) {
       const json = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, {
         defval: '',
       })
-
-      const parsed: Row[] = json.map((raw, idx) => {
-        const r: Row = {
-          name: '',
-          department: '',
-          student_number: '',
-          phone: '',
-          score: null,
-        }
-        for (const [key, val] of Object.entries(raw)) {
-          const field = HEADER_MAP[key.trim()]
-          if (!field) continue
-          if (field === 'score') {
-            const s = String(val).trim()
-            r.score = s === '' ? null : Number(s)
-            if (r.score !== null && (isNaN(r.score) || r.score < 0 || r.score > 100))
-              r._error = '점수가 0~100 범위를 벗어났습니다'
-          } else {
-            r[field] = String(val).trim() as never
-          }
-        }
-        if (!r.student_number) r._error = '학번이 비어있습니다'
-        else if (!r.name) r._error = '이름이 비어있습니다'
-        else if (!r.phone) r._error = '연락처가 비어있습니다 (초기 비밀번호로 사용)'
-        if (!r._error && idx < 0) r._error = undefined
-        return r
-      })
-
-      if (parsed.length === 0) {
+      if (json.length === 0) {
         setParseError('엑셀에 데이터가 없습니다.')
         return
       }
-      setRows(parsed)
+
+      if (mode.kind === 'register') {
+        const parsed: RegisterRow[] = json.map((raw) => {
+          const r: RegisterRow = {
+            name: '',
+            department: '',
+            student_number: '',
+            phone: '',
+            midterm: null,
+            final: null,
+            attendance: null,
+          }
+          for (const [key, val] of Object.entries(raw)) {
+            const field = REGISTER_HEADER_MAP[String(key).trim()]
+            if (!field) continue
+            if (field === 'midterm' || field === 'final' || field === 'attendance') {
+              const s = String(val).trim()
+              if (s === '') continue
+              const n = Number(s)
+              if (!isScoreInRange(n)) {
+                r._error = `${SCORE_LABEL[field]} 점수가 0~100 범위를 벗어났습니다`
+              } else {
+                r[field] = n
+              }
+            } else {
+              r[field] = String(val).trim() as never
+            }
+          }
+          if (!r._error) {
+            if (!r.student_number) r._error = '학번이 비어있습니다'
+            else if (!r.name) r._error = '이름이 비어있습니다'
+            else if (!r.phone)
+              r._error = '연락처가 비어있습니다 (초기 비밀번호로 사용)'
+          }
+          return r
+        })
+        setRegisterRows(parsed)
+      } else {
+        // 점수 갱신 모드: 학번 + 점수만 필요
+        const parsed: ScoreRow[] = json.map((raw) => {
+          const r: ScoreRow = { student_number: '', score: null }
+          for (const [key, val] of Object.entries(raw)) {
+            const k = String(key).trim()
+            if (k === '학번') r.student_number = String(val).trim()
+            else if (k === '점수' || k === SCORE_LABEL[mode.field]) {
+              const s = String(val).trim()
+              if (s === '') continue
+              const n = Number(s)
+              if (!isScoreInRange(n))
+                r._error = '점수가 0~100 범위를 벗어났습니다'
+              else r.score = n
+            }
+          }
+          if (!r._error) {
+            if (!r.student_number) r._error = '학번이 비어있습니다'
+            else if (r.score === null) r._error = '점수가 비어있습니다'
+          }
+          return r
+        })
+        setScoreRows(parsed)
+      }
     } catch (err: any) {
       setParseError('엑셀 읽기 실패: ' + (err?.message ?? err))
     }
@@ -110,49 +171,127 @@ export default function ExcelUploadModal({ open, onClose, onDone }: Props) {
   const startUpload = async () => {
     setUploading(true)
     const out: Result[] = []
-    for (const row of rows) {
-      if (row._error) {
-        out.push({ row, ok: false, error: row._error })
-        setResults([...out])
-        continue
-      }
-      try {
-        const email = studentNumberToEmail(row.student_number)
-        const { data, error: e1 } = await supabaseSignup.auth.signUp({
-          email,
-          password: row.phone,
-        })
-        if (e1) throw e1
-        const newId = data.user?.id
-        if (!newId) throw new Error('사용자 ID 없음')
 
-        const { error: e2 } = await supabase.from('students').insert({
-          id: newId,
-          student_number: row.student_number,
-          name: row.name,
-          department: row.department,
-          phone: row.phone,
-          score: row.score,
-          role: 'student',
-        })
-        if (e2) throw e2
-        out.push({ row, ok: true })
-      } catch (err: any) {
-        const msg: string = err?.message ?? String(err)
-        let nice = msg
-        if (msg.includes('already') || msg.includes('duplicate'))
-          nice = '이미 존재하는 학번/이메일'
-        out.push({ row, ok: false, error: nice })
+    if (mode.kind === 'register') {
+      for (const row of registerRows) {
+        if (row._error) {
+          out.push({
+            student_number: row.student_number,
+            name: row.name,
+            ok: false,
+            error: row._error,
+          })
+          setResults([...out])
+          continue
+        }
+        try {
+          const email = studentNumberToEmail(row.student_number)
+          const { data, error: e1 } = await supabaseSignup.auth.signUp({
+            email,
+            password: row.phone,
+          })
+          if (e1) throw e1
+          const newId = data.user?.id
+          if (!newId) throw new Error('사용자 ID 없음')
+
+          const { error: e2 } = await supabase.from('students').insert({
+            id: newId,
+            student_number: row.student_number,
+            name: row.name,
+            department: row.department,
+            phone: row.phone,
+            midterm: row.midterm,
+            final: row.final,
+            attendance: row.attendance,
+            role: 'student',
+          })
+          if (e2) throw e2
+          out.push({
+            student_number: row.student_number,
+            name: row.name,
+            ok: true,
+          })
+        } catch (err: any) {
+          const msg: string = err?.message ?? String(err)
+          let nice = msg
+          if (msg.includes('already') || msg.includes('duplicate'))
+            nice = '이미 존재하는 학번/이메일'
+          out.push({
+            student_number: row.student_number,
+            name: row.name,
+            ok: false,
+            error: nice,
+          })
+        }
+        setResults([...out])
       }
-      setResults([...out])
+    } else {
+      // 점수 갱신: 학번으로 찾아 해당 컬럼만 update
+      const field = mode.field
+      for (const row of scoreRows) {
+        if (row._error) {
+          out.push({
+            student_number: row.student_number,
+            ok: false,
+            error: row._error,
+          })
+          setResults([...out])
+          continue
+        }
+        try {
+          const { data, error } = await supabase
+            .from('students')
+            .update({ [field]: row.score })
+            .eq('student_number', row.student_number)
+            .eq('role', 'student')
+            .select('name')
+          if (error) throw error
+          if (!data || data.length === 0) {
+            out.push({
+              student_number: row.student_number,
+              ok: false,
+              error: '등록되지 않은 학번',
+            })
+          } else {
+            out.push({
+              student_number: row.student_number,
+              name: data[0].name,
+              ok: true,
+            })
+          }
+        } catch (err: any) {
+          out.push({
+            student_number: row.student_number,
+            ok: false,
+            error: err?.message ?? String(err),
+          })
+        }
+        setResults([...out])
+      }
     }
+
     setUploading(false)
     onDone()
   }
 
   const okCount = results.filter((r) => r.ok).length
   const failCount = results.filter((r) => !r.ok).length
-  const finished = results.length === rows.length && rows.length > 0
+  const finished = results.length === totalRows && totalRows > 0
+
+  const title =
+    mode.kind === 'register'
+      ? '엑셀 일괄 등록 (신규 학생)'
+      : `${SCORE_LABEL[mode.field]} 점수 일괄 업로드`
+
+  const headerHint =
+    mode.kind === 'register'
+      ? '헤더: 이름 / 학과 / 학번 / 연락처 / 중간 / 기말 / 출석'
+      : `헤더: 학번 / 점수 (또는 ${SCORE_LABEL[mode.field]})`
+
+  const allRowsErrored =
+    mode.kind === 'register'
+      ? registerRows.every((r) => r._error)
+      : scoreRows.every((r) => r._error)
 
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
@@ -160,7 +299,7 @@ export default function ExcelUploadModal({ open, onClose, onDone }: Props) {
         <div className="flex items-center justify-between p-5 border-b">
           <h2 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
             <FileSpreadsheet className="text-emerald-600" size={20} />
-            엑셀 일괄 업로드
+            {title}
           </h2>
           <button
             onClick={close}
@@ -173,7 +312,7 @@ export default function ExcelUploadModal({ open, onClose, onDone }: Props) {
 
         <div className="p-5 overflow-y-auto flex-1">
           {/* 파일 선택 */}
-          {rows.length === 0 && (
+          {totalRows === 0 && (
             <div>
               <label className="block">
                 <input
@@ -188,9 +327,7 @@ export default function ExcelUploadModal({ open, onClose, onDone }: Props) {
                   <p className="text-sm font-medium text-gray-700">
                     엑셀 파일 선택 (.xlsx, .xls)
                   </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    헤더: 이름 / 학과 / 학번 / 연락처 / 점수
-                  </p>
+                  <p className="text-xs text-gray-500 mt-1">{headerHint}</p>
                 </div>
               </label>
               {parseError && (
@@ -202,12 +339,13 @@ export default function ExcelUploadModal({ open, onClose, onDone }: Props) {
           )}
 
           {/* 미리보기 */}
-          {rows.length > 0 && results.length === 0 && (
+          {totalRows > 0 && results.length === 0 && (
             <div>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-sm text-gray-600">
                   <span className="font-medium">{fileName}</span> — 총{' '}
-                  <strong>{rows.length}명</strong> 등록 예정
+                  <strong>{totalRows}건</strong>{' '}
+                  {mode.kind === 'register' ? '등록 예정' : '갱신 예정'}
                 </p>
                 <button
                   onClick={reset}
@@ -218,36 +356,73 @@ export default function ExcelUploadModal({ open, onClose, onDone }: Props) {
               </div>
 
               <div className="overflow-x-auto border rounded-lg">
-                <table className="min-w-full text-xs">
-                  <thead className="bg-gray-50 text-gray-600">
-                    <tr>
-                      <th className="px-2 py-2 text-left">학번</th>
-                      <th className="px-2 py-2 text-left">이름</th>
-                      <th className="px-2 py-2 text-left">학과</th>
-                      <th className="px-2 py-2 text-left">연락처</th>
-                      <th className="px-2 py-2 text-right">점수</th>
-                      <th className="px-2 py-2 text-left">상태</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {rows.map((r, i) => (
-                      <tr key={i} className={r._error ? 'bg-red-50' : ''}>
-                        <td className="px-2 py-1.5 font-mono">
-                          {r.student_number}
-                        </td>
-                        <td className="px-2 py-1.5">{r.name}</td>
-                        <td className="px-2 py-1.5">{r.department}</td>
-                        <td className="px-2 py-1.5">{r.phone}</td>
-                        <td className="px-2 py-1.5 text-right">
-                          {r.score ?? '-'}
-                        </td>
-                        <td className="px-2 py-1.5 text-red-600">
-                          {r._error ?? ''}
-                        </td>
+                {mode.kind === 'register' ? (
+                  <table className="min-w-full text-xs">
+                    <thead className="bg-gray-50 text-gray-600">
+                      <tr>
+                        <th className="px-2 py-2 text-left">학번</th>
+                        <th className="px-2 py-2 text-left">이름</th>
+                        <th className="px-2 py-2 text-left">학과</th>
+                        <th className="px-2 py-2 text-left">연락처</th>
+                        <th className="px-2 py-2 text-right">중간</th>
+                        <th className="px-2 py-2 text-right">기말</th>
+                        <th className="px-2 py-2 text-right">출석</th>
+                        <th className="px-2 py-2 text-left">상태</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y">
+                      {registerRows.map((r, i) => (
+                        <tr key={i} className={r._error ? 'bg-red-50' : ''}>
+                          <td className="px-2 py-1.5 font-mono">
+                            {r.student_number}
+                          </td>
+                          <td className="px-2 py-1.5">{r.name}</td>
+                          <td className="px-2 py-1.5">{r.department}</td>
+                          <td className="px-2 py-1.5">{r.phone}</td>
+                          <td className="px-2 py-1.5 text-right">
+                            {r.midterm ?? '-'}
+                          </td>
+                          <td className="px-2 py-1.5 text-right">
+                            {r.final ?? '-'}
+                          </td>
+                          <td className="px-2 py-1.5 text-right">
+                            {r.attendance ?? '-'}
+                          </td>
+                          <td className="px-2 py-1.5 text-red-600">
+                            {r._error ?? ''}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <table className="min-w-full text-xs">
+                    <thead className="bg-gray-50 text-gray-600">
+                      <tr>
+                        <th className="px-2 py-2 text-left">학번</th>
+                        <th className="px-2 py-2 text-right">
+                          {SCORE_LABEL[mode.field]} 점수
+                        </th>
+                        <th className="px-2 py-2 text-left">상태</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {scoreRows.map((r, i) => (
+                        <tr key={i} className={r._error ? 'bg-red-50' : ''}>
+                          <td className="px-2 py-1.5 font-mono">
+                            {r.student_number}
+                          </td>
+                          <td className="px-2 py-1.5 text-right">
+                            {r.score ?? '-'}
+                          </td>
+                          <td className="px-2 py-1.5 text-red-600">
+                            {r._error ?? ''}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
               </div>
             </div>
           )}
@@ -263,7 +438,7 @@ export default function ExcelUploadModal({ open, onClose, onDone }: Props) {
                   <AlertCircle size={16} /> 실패 {failCount}
                 </span>
                 <span className="text-gray-500">
-                  진행 {results.length}/{rows.length}
+                  진행 {results.length}/{totalRows}
                 </span>
               </div>
 
@@ -280,12 +455,14 @@ export default function ExcelUploadModal({ open, onClose, onDone }: Props) {
                     {results.map((r, i) => (
                       <tr key={i} className={r.ok ? '' : 'bg-red-50'}>
                         <td className="px-2 py-1.5 font-mono">
-                          {r.row.student_number}
+                          {r.student_number}
                         </td>
-                        <td className="px-2 py-1.5">{r.row.name}</td>
+                        <td className="px-2 py-1.5">{r.name ?? '-'}</td>
                         <td className="px-2 py-1.5">
                           {r.ok ? (
-                            <span className="text-emerald-700">✓ 등록 완료</span>
+                            <span className="text-emerald-700">
+                              ✓ {mode.kind === 'register' ? '등록 완료' : '갱신 완료'}
+                            </span>
                           ) : (
                             <span className="text-red-700">✗ {r.error}</span>
                           )}
@@ -307,13 +484,17 @@ export default function ExcelUploadModal({ open, onClose, onDone }: Props) {
           >
             {finished ? '닫기' : '취소'}
           </button>
-          {rows.length > 0 && results.length === 0 && (
+          {totalRows > 0 && results.length === 0 && (
             <button
               onClick={startUpload}
-              disabled={uploading || rows.every((r) => r._error)}
+              disabled={uploading || allRowsErrored}
               className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-lg font-medium"
             >
-              {uploading ? '등록 중...' : `${rows.length}명 일괄 등록`}
+              {uploading
+                ? '처리 중...'
+                : mode.kind === 'register'
+                ? `${totalRows}명 일괄 등록`
+                : `${totalRows}건 점수 갱신`}
             </button>
           )}
         </div>
