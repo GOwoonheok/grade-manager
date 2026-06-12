@@ -1,5 +1,5 @@
 import { useRef, useState, type ChangeEvent } from 'react'
-import { X, Upload, FileSpreadsheet, CheckCircle2, AlertCircle } from 'lucide-react'
+import { X, Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Download } from 'lucide-react'
 import * as XLSX from 'xlsx'
 import {
   supabase,
@@ -7,7 +7,9 @@ import {
   studentNumberToEmail,
   SCORE_LABEL,
   type ScoreField,
+  type Student,
 } from '../lib/supabase'
+import { downloadScoreTemplate } from '../lib/excelTemplate'
 
 type RegisterRow = {
   name: string
@@ -42,6 +44,7 @@ type Props = {
   mode: ExcelMode
   onClose: () => void
   onDone: () => void
+  students: Pick<Student, 'student_number' | 'name'>[]
 }
 
 const REGISTER_HEADER_MAP: Record<string, keyof RegisterRow> = {
@@ -56,7 +59,7 @@ const REGISTER_HEADER_MAP: Record<string, keyof RegisterRow> = {
 
 const isScoreInRange = (n: number) => !isNaN(n) && n >= 0 && n <= 100
 
-export default function ExcelUploadModal({ open, mode, onClose, onDone }: Props) {
+export default function ExcelUploadModal({ open, mode, onClose, onDone, students }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [registerRows, setRegisterRows] = useState<RegisterRow[]>([])
   const [scoreRows, setScoreRows] = useState<ScoreRow[]>([])
@@ -330,6 +333,16 @@ export default function ExcelUploadModal({ open, mode, onClose, onDone }: Props)
                   <p className="text-xs text-gray-500 mt-1">{headerHint}</p>
                 </div>
               </label>
+              {mode.kind === 'score' && (
+                <button
+                  type="button"
+                  onClick={() => downloadScoreTemplate(mode.field, students)}
+                  className="mt-3 flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700 font-medium"
+                >
+                  <Download size={16} />
+                  표준 양식 다운로드 (.xlsx) — 재학생 {students.length}명 자동 채움
+                </button>
+              )}
               {parseError && (
                 <div className="mt-3 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
                   {parseError}

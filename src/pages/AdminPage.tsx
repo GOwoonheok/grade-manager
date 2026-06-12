@@ -227,6 +227,7 @@ export default function AdminPage() {
           mode={excelMode}
           onClose={() => setExcelMode(null)}
           onDone={loadStudents}
+          students={students}
         />
       )}
     </div>
