@@ -7,6 +7,7 @@ import {
   type EnrollmentRow,
 } from '../lib/courses'
 import AnswerSheetGallery from './AnswerSheetGallery'
+import { getAnswerSheetFlags } from '../lib/answerSheets'
 
 type Props = {
   open: boolean
@@ -38,6 +39,7 @@ export default function StudentFormModal({
   const [form, setForm] = useState<FormState>(empty)
   const [error, setError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
+  const [imgFlags, setImgFlags] = useState<{ midterm: boolean; final: boolean }>({ midterm: false, final: false })
 
   useEffect(() => {
     if (initial) {
@@ -56,6 +58,16 @@ export default function StudentFormModal({
     }
     setError(null)
   }, [initial, open])
+
+  useEffect(() => {
+    if (open && initial?.student_id) {
+      getAnswerSheetFlags([initial.student_id])
+        .then((m) => setImgFlags(m[initial.student_id] ?? { midterm: false, final: false }))
+        .catch(() => {})
+    } else {
+      setImgFlags({ midterm: false, final: false })
+    }
+  }, [open, initial])
 
   if (!open) return null
 
@@ -189,7 +201,7 @@ export default function StudentFormModal({
           </Field>
 
           <div className="grid grid-cols-3 gap-3">
-            <Field label="중간" hint="0~100">
+            <Field label={imgFlags.midterm ? '중간 (이미지)' : '중간'} hint="0~100">
               <input
                 type="number"
                 step="0.1"
@@ -201,7 +213,7 @@ export default function StudentFormModal({
                 placeholder="-"
               />
             </Field>
-            <Field label="기말" hint="0~100">
+            <Field label={imgFlags.final ? '기말 (이미지)' : '기말'} hint="0~100">
               <input
                 type="number"
                 step="0.1"
