@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { Check, Eye, Image as ImageIcon, Pencil, Plus, Trash2, X as XIcon } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, Eye, Image as ImageIcon, Pencil, Plus, Trash2, X as XIcon } from 'lucide-react'
 import {
   bulkCreateCards,
   createCard,
@@ -13,6 +13,7 @@ import {
   listDecks,
   listMembers,
   listTopics,
+  reorderCards,
   setMemberStatus,
   updateCard,
   uploadCardImage,
@@ -21,7 +22,7 @@ import {
   type StudyMember,
   type Topic,
 } from '../lib/flashcards'
-import { resizeImage } from '../lib/answerSheets'
+import { readClipboardImage, resizeImage } from '../lib/answerSheets'
 import CardPlayer from './CardPlayer'
 
 const STATUS_LABEL: Record<string, string> = { pending: '대기', approved: '승인', rejected: '거부' }
@@ -187,6 +188,30 @@ function TopicCards({ topic, cards, reload }: { topic: Topic; cards: Card[]; rel
     XLSX.utils.book_append_sheet(wb, ws, '카드')
     XLSX.writeFile(wb, `${topic.name}_카드양식.xlsx`)
   }
+  const exportCards = async () => {
+    const XLSX = await import('xlsx')
+    const data = cards.map((c) => ({ 토픽명: c.term, 정의: c.definition, 내용: c.content, 기타: c.keywords }))
+    const ws = XLSX.utils.json_to_sheet(data, { header: ['토픽명', '정의', '내용', '기타'] })
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '카드')
+    XLSX.writeFile(wb, `${topic.name}_카드.xlsx`)
+  }
+  const pasteImg = async () => {
+    setBusy(true); setMsg(null)
+    try {
+      const blob = await readClipboardImage()
+      if (!blob) { setMsg('클립보드에 이미지가 없습니다. (Win+Shift+S 캡처 후 다시)'); return }
+      setImg(await uploadCardImage(await resizeImage(blob)))
+    } catch (er: any) { setMsg('붙여넣기 실패: ' + (er?.message ?? er)) } finally { setBusy(false) }
+  }
+  const move = async (index: number, dir: -1 | 1) => {
+    const j = index + dir
+    if (j < 0 || j >= cards.length) return
+    const ids = cards.map((c) => c.id)
+    ;[ids[index], ids[j]] = [ids[j], ids[index]]
+    setBusy(true); setMsg(null)
+    try { await reorderCards(ids); reload() } catch (er: any) { setMsg('순서 변경 실패: ' + (er?.message ?? er)) } finally { setBusy(false) }
+  }
 
   return (
     <div className="border-t border-gray-100 pt-3">
@@ -195,6 +220,7 @@ function TopicCards({ topic, cards, reload }: { topic: Topic; cards: Card[]; rel
         <div className="flex items-center gap-3 text-xs">
           <button onClick={() => setPreview((p) => !p)} className={preview ? 'text-indigo-600 font-medium' : 'text-gray-500 hover:text-gray-700'}><Eye size={13} className="inline mr-0.5" />미리보기</button>
           <button onClick={downloadTemplate} className="text-indigo-600 hover:text-indigo-700">양식 다운로드</button>
+          {cards.length > 0 && <button onClick={exportCards} className="text-indigo-600 hover:text-indigo-700">내보내기</button>}
           <label className="cursor-pointer text-emerald-700 hover:text-emerald-800">
             엑셀 업로드
             <input ref={xlsxRef} type="file" accept=".xlsx,.xls" onChange={onExcel} disabled={busy} className="hidden" />
@@ -208,7 +234,7 @@ function TopicCards({ topic, cards, reload }: { topic: Topic; cards: Card[]; rel
       )}
       <div className="space-y-2 mb-3 max-h-56 overflow-y-auto">
         {cards.length === 0 && <p className="text-sm text-gray-400">카드가 없습니다.</p>}
-        {cards.map((c) => (
+        {cards.map((c, i) => (
           <div key={c.id} className={`flex items-center justify-between gap-2 text-sm border rounded-lg p-2 ${editId === c.id ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200'}`}>
             <div className="flex items-center gap-2 min-w-0">
               {c.front_image ? (
@@ -222,6 +248,8 @@ function TopicCards({ topic, cards, reload }: { topic: Topic; cards: Card[]; rel
               </div>
             </div>
             <div className="flex items-center gap-1 shrink-0">
+              <button onClick={() => move(i, -1)} disabled={i === 0 || busy} className="text-gray-400 hover:text-gray-700 p-1 disabled:opacity-30" title="위로"><ChevronUp size={15} /></button>
+              <button onClick={() => move(i, 1)} disabled={i === cards.length - 1 || busy} className="text-gray-400 hover:text-gray-700 p-1 disabled:opacity-30" title="아래로"><ChevronDown size={15} /></button>
               <button onClick={() => startEdit(c)} className="text-gray-400 hover:text-indigo-600 p-1" title="수정"><Pencil size={15} /></button>
               <button onClick={async () => { await deleteCard(c.id); if (editId === c.id) resetForm(); reload() }} className="text-gray-400 hover:text-red-600 p-1" title="삭제"><Trash2 size={15} /></button>
             </div>
@@ -234,7 +262,11 @@ function TopicCards({ topic, cards, reload }: { topic: Topic; cards: Card[]; rel
         <textarea value={def} onChange={(e) => setDef(e.target.value)} placeholder="정의" rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
         <textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="내용" rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
         <textarea value={kw} onChange={(e) => setKw(e.target.value)} placeholder="기타 (키워드·참고 등)" rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
-        <ImgPick label={img ? '이미지 ✓' : '이미지(선택)'} onChange={pickImg} />
+        <div className="flex items-center gap-2 flex-wrap">
+          <ImgPick label={img ? '이미지 ✓' : '이미지(선택)'} onChange={pickImg} />
+          <button type="button" onClick={pasteImg} disabled={busy} className="px-2 py-1.5 border border-gray-300 rounded-lg text-gray-600 hover:bg-gray-100 text-xs">붙여넣기</button>
+          {img && <button type="button" onClick={() => setImg(null)} className="px-2 py-1.5 border border-gray-300 rounded-lg text-red-600 hover:bg-red-50 text-xs">이미지 제거</button>}
+        </div>
         {msg && <p className="text-xs text-gray-600">{msg}</p>}
         <div className="flex gap-2">
           <button onClick={submit} disabled={busy} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-lg text-sm font-medium flex items-center gap-1">{editId ? <Check size={16} /> : <Plus size={16} />}{busy ? '처리 중...' : editId ? '수정 저장' : '카드 추가'}</button>

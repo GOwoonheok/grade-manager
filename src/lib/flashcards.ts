@@ -188,6 +188,12 @@ export async function deleteCard(id: string): Promise<void> {
   const { error } = await supabase.from('cards').delete().eq('id', id)
   if (error) throw error
 }
+// 카드 순서 변경: 주어진 순서대로 sort_order를 0..n으로 재기록
+export async function reorderCards(orderedIds: string[]): Promise<void> {
+  await Promise.all(
+    orderedIds.map((id, i) => supabase.from('cards').update({ sort_order: i }).eq('id', id)),
+  )
+}
 export async function listMembers(): Promise<StudyMember[]> {
   const { data, error } = await supabase
     .from('study_members')
