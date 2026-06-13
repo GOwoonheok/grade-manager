@@ -138,3 +138,22 @@ export async function readClipboardImage(): Promise<Blob | null> {
   }
   return null
 }
+
+// 명단 표시용: 학생별 중간/기말 답안지 보유 여부
+export async function getAnswerSheetFlags(
+  studentIds: string[],
+): Promise<Record<string, { midterm: boolean; final: boolean }>> {
+  const map: Record<string, { midterm: boolean; final: boolean }> = {}
+  if (studentIds.length === 0) return map
+  const { data, error } = await supabase
+    .from('answer_sheets')
+    .select('student_id, exam_type')
+    .in('student_id', studentIds)
+  if (error) throw error
+  for (const r of (data as { student_id: string; exam_type: ExamType }[]) ?? []) {
+    const f = map[r.student_id] ?? (map[r.student_id] = { midterm: false, final: false })
+    if (r.exam_type === 'midterm') f.midterm = true
+    else if (r.exam_type === 'final') f.final = true
+  }
+  return map
+}

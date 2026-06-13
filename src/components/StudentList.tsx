@@ -1,15 +1,16 @@
-import { Pencil, Trash2 } from 'lucide-react'
+import { Image as ImageIcon, Pencil, Trash2 } from 'lucide-react'
 import { calcFinalScore, type Course } from '../lib/supabase'
 import type { EnrollmentRow } from '../lib/courses'
 
 type Props = {
   rows: EnrollmentRow[]
   course: Course | null
+  flags: Record<string, { midterm: boolean; final: boolean }>
   onEdit: (r: EnrollmentRow) => void
   onDelete: (r: EnrollmentRow) => void
 }
 
-export default function StudentList({ rows, course, onEdit, onDelete }: Props) {
+export default function StudentList({ rows, course, flags, onEdit, onDelete }: Props) {
   if (rows.length === 0) {
     return (
       <div className="text-center text-gray-500 py-12">
@@ -39,34 +40,47 @@ export default function StudentList({ rows, course, onEdit, onDelete }: Props) {
             <th className="px-4 py-3 font-semibold text-right">기말</th>
             <th className="px-4 py-3 font-semibold text-right">출석</th>
             <th className="px-4 py-3 font-semibold text-right">최종</th>
-            <th className="px-4 py-3 font-semibold w-20"></th>
+            <th className="px-4 py-3 font-semibold w-12"></th>
           </tr>
         </thead>
         <tbody className="divide-y">
           {rows.map((r) => {
             const finalScore = w ? calcFinalScore(r, w) : null
             const s = r.student
+            const f = s ? flags[s.id] : undefined
             return (
               <tr key={r.id} className="hover:bg-gray-50">
                 <td className="px-4 py-3 font-mono text-gray-700">{s?.student_number}</td>
-                <td className="px-4 py-3 font-medium text-gray-900">{s?.name}</td>
-                <td className="px-4 py-3 text-gray-700 hidden md:table-cell">{s?.department}</td>
-                <td className="px-4 py-3 text-gray-700 hidden lg:table-cell">{s?.phone}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-700">{r.midterm ?? '-'}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-700">{r.final ?? '-'}</td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-700">{r.attendance ?? '-'}</td>
-                <td className="px-4 py-3 text-right tabular-nums font-semibold text-indigo-700">
-                  {finalScore ?? '-'}
-                </td>
                 <td className="px-4 py-3">
-                  <div className="flex items-center justify-end gap-1">
+                  <span className="inline-flex items-center gap-1.5">
+                    <span className="font-medium text-gray-900">{s?.name}</span>
                     <button
                       onClick={() => onEdit(r)}
-                      className="p-1.5 text-gray-500 hover:text-indigo-600 hover:bg-indigo-50 rounded"
+                      className="p-1 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded"
                       title="수정"
                     >
-                      <Pencil size={16} />
+                      <Pencil size={14} />
                     </button>
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-gray-700 hidden md:table-cell">{s?.department}</td>
+                <td className="px-4 py-3 text-gray-700 hidden lg:table-cell">{s?.phone}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-gray-700">
+                  <span className="inline-flex items-center justify-end gap-1">
+                    {r.midterm ?? '-'}
+                    {f?.midterm && <ImageIcon size={13} className="text-indigo-400" />}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums text-gray-700">
+                  <span className="inline-flex items-center justify-end gap-1">
+                    {r.final ?? '-'}
+                    {f?.final && <ImageIcon size={13} className="text-indigo-400" />}
+                  </span>
+                </td>
+                <td className="px-4 py-3 text-right tabular-nums text-gray-700">{r.attendance ?? '-'}</td>
+                <td className="px-4 py-3 text-right tabular-nums font-semibold text-indigo-700">{finalScore ?? '-'}</td>
+                <td className="px-4 py-3">
+                  <div className="flex items-center justify-end">
                     <button
                       onClick={() => onDelete(r)}
                       className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded"

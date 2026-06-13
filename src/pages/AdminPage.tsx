@@ -9,6 +9,7 @@ import {
   updateCourseWeights,
   type EnrollmentRow,
 } from '../lib/courses'
+import { getAnswerSheetFlags } from '../lib/answerSheets'
 import StudentList from '../components/StudentList'
 import StudentFormModal from '../components/StudentFormModal'
 import CourseFormModal from '../components/CourseFormModal'
@@ -23,6 +24,7 @@ export default function AdminPage() {
   const [courses, setCourses] = useState<Course[]>([])
   const [courseId, setCourseId] = useState<string | null>(null)
   const [rows, setRows] = useState<EnrollmentRow[]>([])
+  const [sheetFlags, setSheetFlags] = useState<Record<string, { midterm: boolean; final: boolean }>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
@@ -54,7 +56,10 @@ export default function AdminPage() {
     setLoading(true)
     setError(null)
     try {
-      setRows(await listEnrollments(cid))
+      const rs = await listEnrollments(cid)
+      setRows(rs)
+      const ids = rs.map((r) => r.student?.id).filter((x): x is string => !!x)
+      setSheetFlags(await getAnswerSheetFlags(ids))
     } catch (e: any) {
       setError(e?.message ?? String(e))
       setRows([])
@@ -230,6 +235,7 @@ export default function AdminPage() {
                 <StudentList
                   rows={filtered}
                   course={selectedCourse}
+                  flags={sheetFlags}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                 />
