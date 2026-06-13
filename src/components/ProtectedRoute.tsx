@@ -28,8 +28,7 @@ export default function ProtectedRoute({ children, requiredRole, skipForceCheck 
   }
 
   if (requiredRole && profile?.role !== requiredRole) {
-    const fallback = profile?.role === 'professor' ? '/admin' : '/me'
-    return <Navigate to={fallback} replace />
+    return <Navigate to="/home" replace />
   }
 
   return <>{children}</>

@@ -26,7 +26,7 @@ export const supabaseSignup = createClient(url, anonKey, {
 export const studentNumberToEmail = (studentNumber: string) =>
   `${studentNumber.toLowerCase()}@grade.local`
 
-export type Role = 'student' | 'professor'
+export type Role = 'student' | 'professor' | 'admin'
 
 export type Student = {
   id: string
