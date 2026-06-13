@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { BookOpen, Calculator, LogOut, Plus, Search, Upload, Users } from 'lucide-react'
+import { BookOpen, Calculator, ChevronLeft, ChevronRight, LogOut, Plus, Search, Upload, Users } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { type Course } from '../lib/supabase'
 import {
@@ -28,6 +28,8 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(20)
 
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<EnrollmentRow | null>(null)
@@ -93,6 +95,15 @@ export default function AdminPage() {
       )
     })
   }, [rows, search])
+
+  // 검색/과목/페이지크기 변경 시 첫 페이지로
+  useEffect(() => {
+    setPage(1)
+  }, [search, courseId, pageSize])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  const pageSafe = Math.min(page, totalPages)
+  const paged = filtered.slice((pageSafe - 1) * pageSize, pageSafe * pageSize)
 
   const handleAdd = () => {
     setEditing(null)
@@ -233,7 +244,7 @@ export default function AdminPage() {
                 <div className="text-center text-gray-500 py-12">불러오는 중...</div>
               ) : (
                 <StudentList
-                  rows={filtered}
+                  rows={paged}
                   course={selectedCourse}
                   flags={sheetFlags}
                   onEdit={handleEdit}
@@ -241,8 +252,40 @@ export default function AdminPage() {
                 />
               )}
 
-              <div className="p-4 text-sm text-gray-500 border-t">
-                총 {filtered.length}명 {search && `(전체 ${rows.length}명 중)`}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 text-sm text-gray-500 border-t">
+                <div className="flex items-center gap-2">
+                  <span>총 {filtered.length}명{search && ` (전체 ${rows.length}명 중)`}</span>
+                  <select
+                    value={pageSize}
+                    onChange={(e) => setPageSize(Number(e.target.value))}
+                    className="px-2 py-1 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                  >
+                    <option value={10}>10건</option>
+                    <option value={20}>20건</option>
+                    <option value={50}>50건</option>
+                  </select>
+                </div>
+                {totalPages > 1 && (
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setPage((p) => Math.max(1, p - 1))}
+                      disabled={pageSafe <= 1}
+                      className="px-2 py-1 rounded-lg border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+                      title="이전 페이지"
+                    >
+                      <ChevronLeft size={16} />
+                    </button>
+                    <span className="px-2 tabular-nums">{pageSafe} / {totalPages}</span>
+                    <button
+                      onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                      disabled={pageSafe >= totalPages}
+                      className="px-2 py-1 rounded-lg border border-gray-300 disabled:opacity-40 hover:bg-gray-50"
+                      title="다음 페이지"
+                    >
+                      <ChevronRight size={16} />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </>

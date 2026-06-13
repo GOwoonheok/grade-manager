@@ -68,13 +68,13 @@ export default function StudentList({ rows, course, flags, onEdit, onDelete }: P
                 <td className="px-4 py-3 text-right tabular-nums text-gray-700">
                   <span className="inline-flex items-center justify-end gap-1">
                     {r.midterm ?? '-'}
-                    {f?.midterm && <ImageIcon size={13} className="text-indigo-400" />}
+                    {f?.midterm && <ImageIcon size={15} className="text-indigo-500" aria-label="답안지 이미지 있음" />}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-700">
                   <span className="inline-flex items-center justify-end gap-1">
                     {r.final ?? '-'}
-                    {f?.final && <ImageIcon size={13} className="text-indigo-400" />}
+                    {f?.final && <ImageIcon size={15} className="text-indigo-500" aria-label="답안지 이미지 있음" />}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-700">{r.attendance ?? '-'}</td>
