@@ -127,6 +127,20 @@ export async function addStudentToCourse(
   if (e3) throw e3
 }
 
+// 과목별 반 통계 (008 RPC). 008 미실행/오류 시 null.
+export type CourseStats = {
+  avg_score: number | null
+  max_score: number | null
+  total_count: number
+}
+export async function getCourseStats(courseId: string): Promise<CourseStats | null> {
+  const { data, error } = await supabase
+    .rpc('get_course_stats', { cid: courseId })
+    .single()
+  if (error || !data) return null
+  return data as CourseStats
+}
+
 // 학생: 내 수강 과목 목록(과목 정보 조인)
 export type MyEnrollment = Enrollment & { course: Course | null }
 export async function listMyEnrollments(): Promise<MyEnrollment[]> {

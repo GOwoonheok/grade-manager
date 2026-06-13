@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import {
   AlertCircle,
+  BookOpen,
   CalendarCheck,
   CheckCircle2,
   FileImage,
@@ -13,47 +14,27 @@ import {
   X,
 } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { calcFinalScore, supabase } from '../lib/supabase'
 import {
-  calcFinalScore,
-  supabase,
-  type ClassSettings,
-  type ClassStats,
-} from '../lib/supabase'
+  getCourseStats,
+  listMyEnrollments,
+  type CourseStats,
+  type MyEnrollment,
+} from '../lib/courses'
 import AnswerSheetGallery from '../components/AnswerSheetGallery'
 import BrandHeader from '../components/BrandHeader'
 
 export default function StudentPage() {
   const { profile, signOut } = useAuth()
-  const [stats, setStats] = useState<ClassStats | null>(null)
-  const [statsLoading, setStatsLoading] = useState(true)
-  const [settings, setSettings] = useState<ClassSettings | null>(null)
+  const [enrollments, setEnrollments] = useState<MyEnrollment[]>([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    supabase
-      .rpc('get_class_stats')
-      .single()
-      .then(({ data }) => {
-        setStats((data as ClassStats) ?? null)
-        setStatsLoading(false)
-      })
-    supabase
-      .from('class_settings')
-      .select('*')
-      .eq('id', 1)
-      .single()
-      .then(({ data }) => {
-        if (data) setSettings(data as ClassSettings)
-      })
+    listMyEnrollments()
+      .then((e) => setEnrollments(e))
+      .catch(() => setEnrollments([]))
+      .finally(() => setLoading(false))
   }, [])
-
-  const finalScore = useMemo(() => {
-    if (!profile || !settings) return null
-    return calcFinalScore(profile, settings)
-  }, [profile, settings])
-
-  const ratioText = settings
-    ? `${settings.midterm_weight}·${settings.final_weight}·${settings.attendance_weight}`
-    : ''
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -75,7 +56,6 @@ export default function StudentPage() {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-6 space-y-4">
-        {/* 본인 정보 */}
         <section className="bg-white rounded-2xl shadow-sm p-6">
           <p className="text-sm text-gray-500 mb-1">안녕하세요</p>
           <h2 className="text-2xl font-bold text-gray-900">
@@ -87,72 +67,90 @@ export default function StudentPage() {
           <p className="text-sm text-gray-600 mt-1">{profile?.department}</p>
         </section>
 
-        {/* 내 점수 4종 */}
-        <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <ScoreCard
-            label="중간"
-            value={profile?.midterm ?? null}
-            color="gray"
-            icon={<GraduationCap size={18} />}
-          />
-          <ScoreCard
-            label="기말"
-            value={profile?.final ?? null}
-            color="gray"
-            icon={<GraduationCap size={18} />}
-          />
-          <ScoreCard
-            label="출석"
-            value={profile?.attendance ?? null}
-            color="gray"
-            icon={<CalendarCheck size={18} />}
-          />
-          <ScoreCard
-            label="최종"
-            value={finalScore}
-            color="indigo"
-            icon={<Sparkles size={18} />}
-            sub={settings ? `비율 ${ratioText}` : ''}
-          />
-        </section>
-
-        {/* 반 통계 */}
-        <section className="grid grid-cols-2 gap-3">
-          <ScoreCard
-            label="반 평균 (최종)"
-            value={statsLoading ? null : stats?.avg_score ?? null}
-            color="gray"
-            icon={<Users size={18} />}
-            sub={
-              !statsLoading && stats?.total_count
-                ? `${stats.total_count}명 기준`
-                : ''
-            }
-          />
-          <ScoreCard
-            label="반 최고점 (최종)"
-            value={statsLoading ? null : stats?.max_score ?? null}
-            color="amber"
-            icon={<Trophy size={18} />}
-          />
-        </section>
-
-        {/* 답안지 */}
-        {profile && (
-          <section className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
-            <div className="flex items-center gap-2">
-              <FileImage className="text-indigo-600" size={18} />
-              <h2 className="text-sm font-semibold text-gray-800">답안지</h2>
-            </div>
-            <AnswerSheetGallery studentId={profile.id} examType="midterm" readOnly />
-            <AnswerSheetGallery studentId={profile.id} examType="final" readOnly />
+        {loading ? (
+          <div className="text-center text-gray-500 py-8">불러오는 중...</div>
+        ) : enrollments.length === 0 ? (
+          <section className="bg-white rounded-2xl shadow-sm p-8 text-center text-gray-500">
+            수강 중인 과목이 없습니다.
           </section>
+        ) : (
+          enrollments.map((en) => (
+            <CourseBlock key={en.id} en={en} studentId={profile?.id ?? ''} />
+          ))
         )}
 
-        {/* 비밀번호 변경 */}
         <PasswordChange />
       </main>
     </div>
+  )
+}
+
+function CourseBlock({ en, studentId }: { en: MyEnrollment; studentId: string }) {
+  const c = en.course
+  const [stats, setStats] = useState<CourseStats | null>(null)
+
+  useEffect(() => {
+    if (c) getCourseStats(c.id).then(setStats)
+  }, [c?.id])
+
+  const finalScore = useMemo(() => {
+    if (!c) return null
+    return calcFinalScore(en, {
+      midterm_weight: c.midterm_weight,
+      final_weight: c.final_weight,
+      attendance_weight: c.attendance_weight,
+    })
+  }, [en, c])
+
+  const ratioText = c ? `${c.midterm_weight}·${c.final_weight}·${c.attendance_weight}` : ''
+
+  return (
+    <section className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
+      <div className="flex items-center gap-2">
+        <BookOpen className="text-indigo-600" size={18} />
+        <h3 className="font-semibold text-gray-800">
+          {c ? `${c.year}-${c.semester}학기 · ${c.subject_name}` : '과목'}
+        </h3>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <ScoreCard label="중간" value={en.midterm} color="gray" icon={<GraduationCap size={18} />} />
+        <ScoreCard label="기말" value={en.final} color="gray" icon={<GraduationCap size={18} />} />
+        <ScoreCard label="출석" value={en.attendance} color="gray" icon={<CalendarCheck size={18} />} />
+        <ScoreCard
+          label="최종"
+          value={finalScore}
+          color="indigo"
+          icon={<Sparkles size={18} />}
+          sub={c ? `비율 ${ratioText}` : ''}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-3">
+        <ScoreCard
+          label="반 평균 (최종)"
+          value={stats?.avg_score ?? null}
+          color="gray"
+          icon={<Users size={18} />}
+          sub={stats?.total_count ? `${stats.total_count}명 기준` : ''}
+        />
+        <ScoreCard
+          label="반 최고점 (최종)"
+          value={stats?.max_score ?? null}
+          color="amber"
+          icon={<Trophy size={18} />}
+        />
+      </div>
+
+      <div className="space-y-3 pt-1 border-t">
+        <div className="flex items-center gap-2">
+          <FileImage className="text-indigo-600" size={16} />
+          <span className="text-sm font-semibold text-gray-800">답안지</span>
+        </div>
+        <AnswerSheetGallery studentId={studentId} examType="midterm" readOnly />
+        <AnswerSheetGallery studentId={studentId} examType="final" readOnly />
+      </div>
+    </section>
   )
 }
 
@@ -176,16 +174,14 @@ function ScoreCard({
   }
   const valueColor = color === 'indigo' ? 'text-indigo-700' : 'text-gray-900'
   return (
-    <div className="bg-white rounded-2xl shadow-sm p-4">
+    <div className="bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
       <div className="flex items-center justify-between mb-2">
         <p className="text-xs font-medium text-gray-500">{label}</p>
         <div className={`rounded-lg p-1 ${colorMap[color]}`}>{icon}</div>
       </div>
       <p className={`text-2xl font-bold tabular-nums ${valueColor}`}>
         {value === null ? '—' : value}
-        {value !== null && (
-          <span className="text-sm text-gray-400 ml-1">점</span>
-        )}
+        {value !== null && <span className="text-sm text-gray-400 ml-1">점</span>}
       </p>
       {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
     </div>
@@ -224,9 +220,7 @@ function PasswordChange() {
     })
     setPwd('')
     setConfirm('')
-    setTimeout(() => {
-      signOut()
-    }, 1500)
+    setTimeout(() => signOut(), 1500)
   }
 
   return (
@@ -258,8 +252,7 @@ function PasswordChange() {
           {msg && (
             <div
               role="alert"
-              aria-live="polite"
-              className={`flex items-start gap-2 text-sm rounded-lg px-3 py-2.5 border animate-[fadeIn_.15s_ease-out] ${
+              className={`flex items-start gap-2 text-sm rounded-lg px-3 py-2.5 border ${
                 msg.type === 'ok'
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
                   : 'bg-red-50 border-red-200 text-red-800'
