@@ -1,6 +1,7 @@
-import { useEffect, useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { Check, Image as ImageIcon, Plus, Trash2, X as XIcon } from 'lucide-react'
 import {
+  bulkCreateCards,
   createCard,
   createDeck,
   createTopic,
@@ -127,50 +128,88 @@ export default function AdminStudy() {
 }
 
 function TopicCards({ topic, cards, reload }: { topic: Topic; cards: Card[]; reload: () => void }) {
-  const [front, setFront] = useState('')
-  const [back, setBack] = useState('')
-  const [frontImg, setFrontImg] = useState<string | null>(null)
-  const [backImg, setBackImg] = useState<string | null>(null)
+  const [term, setTerm] = useState('')
+  const [def, setDef] = useState('')
+  const [content, setContent] = useState('')
+  const [kw, setKw] = useState('')
+  const [img, setImg] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
+  const [msg, setMsg] = useState<string | null>(null)
+  const xlsxRef = useRef<HTMLInputElement>(null)
 
-  const pick = async (e: ChangeEvent<HTMLInputElement>, set: (p: string | null) => void) => {
+  const pickImg = async (e: ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]; if (!f) return
-    setBusy(true); setErr(null)
-    try { set(await uploadCardImage(await resizeImage(f))) } catch (er: any) { setErr('이미지 업로드 실패: ' + (er?.message ?? er)) } finally { setBusy(false); e.target.value = '' }
+    setBusy(true); setMsg(null)
+    try { setImg(await uploadCardImage(await resizeImage(f))) } catch (er: any) { setMsg('이미지 업로드 실패: ' + (er?.message ?? er)) } finally { setBusy(false); e.target.value = '' }
   }
   const add = async () => {
-    if (!front.trim() && !frontImg) { setErr('앞면(문제)을 입력하세요.'); return }
-    setBusy(true); setErr(null)
+    if (!term.trim()) { setMsg('토픽명을 입력하세요.'); return }
+    setBusy(true); setMsg(null)
     try {
-      await createCard(topic.id, { front: front.trim(), back: back.trim(), front_image: frontImg, back_image: backImg })
-      setFront(''); setBack(''); setFrontImg(null); setBackImg(null); reload()
-    } catch (er: any) { setErr('카드 추가 실패: ' + (er?.message ?? er)) } finally { setBusy(false) }
+      await createCard(topic.id, { term: term.trim(), definition: def.trim(), content: content.trim(), keywords: kw.trim(), image: img })
+      setTerm(''); setDef(''); setContent(''); setKw(''); setImg(null); reload()
+    } catch (er: any) { setMsg('카드 추가 실패: ' + (er?.message ?? er)) } finally { setBusy(false) }
+  }
+  const onExcel = async (e: ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0]; if (!f) return
+    setBusy(true); setMsg(null)
+    try {
+      const XLSX = await import('xlsx')
+      const wb = XLSX.read(await f.arrayBuffer())
+      const json = XLSX.utils.sheet_to_json<Record<string, any>>(wb.Sheets[wb.SheetNames[0]], { defval: '' })
+      const rows = json
+        .map((r) => ({
+          term: String(r['토픽명'] ?? '').trim(),
+          definition: String(r['정의'] ?? '').trim(),
+          content: String(r['주요내용'] ?? '').trim(),
+          keywords: String(r['키워드'] ?? '').trim(),
+        }))
+        .filter((r) => r.term)
+      if (rows.length === 0) { setMsg('유효한 행이 없습니다 (헤더: 토픽명/정의/주요내용/키워드).'); return }
+      const n = await bulkCreateCards(topic.id, rows)
+      reload()
+      setMsg(`${n}개 카드 업로드 완료`)
+    } catch (er: any) { setMsg('엑셀 업로드 실패: ' + (er?.message ?? er)) } finally { setBusy(false); e.target.value = '' }
+  }
+  const downloadTemplate = async () => {
+    const XLSX = await import('xlsx')
+    const ws = XLSX.utils.aoa_to_sheet([['토픽명', '정의', '주요내용', '키워드']])
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '카드')
+    XLSX.writeFile(wb, `${topic.name}_카드양식.xlsx`)
   }
 
   return (
     <div className="border-t border-gray-100 pt-3">
-      <p className="text-xs font-semibold text-gray-600 mb-2">{topic.name} · 카드 {cards.length}장</p>
+      <div className="flex items-center justify-between mb-2 gap-2">
+        <p className="text-xs font-semibold text-gray-600">{topic.name} · 카드 {cards.length}장</p>
+        <div className="flex items-center gap-3 text-xs">
+          <button onClick={downloadTemplate} className="text-indigo-600 hover:text-indigo-700">양식 다운로드</button>
+          <label className="cursor-pointer text-emerald-700 hover:text-emerald-800">
+            엑셀 업로드
+            <input ref={xlsxRef} type="file" accept=".xlsx,.xls" onChange={onExcel} disabled={busy} className="hidden" />
+          </label>
+        </div>
+      </div>
       <div className="space-y-2 mb-3 max-h-56 overflow-y-auto">
         {cards.length === 0 && <p className="text-sm text-gray-400">카드가 없습니다.</p>}
         {cards.map((c) => (
           <div key={c.id} className="flex items-start justify-between gap-2 text-sm border border-gray-200 rounded-lg p-2">
             <div className="min-w-0">
-              <p className="font-medium text-gray-900 truncate">{c.front || '(이미지)'}</p>
-              <p className="text-gray-500 truncate">{c.back || (c.back_image ? '(이미지)' : '')}</p>
+              <p className="font-medium text-gray-900 truncate">{c.term || '(제목없음)'}</p>
+              <p className="text-gray-500 truncate">{c.definition}</p>
             </div>
             <button onClick={async () => { await deleteCard(c.id); reload() }} className="text-gray-400 hover:text-red-600 shrink-0"><Trash2 size={15} /></button>
           </div>
         ))}
       </div>
       <div className="bg-gray-50 rounded-lg p-3 space-y-2">
-        <textarea value={front} onChange={(e) => setFront(e.target.value)} placeholder="앞면 (문제/개념)" rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
-        <textarea value={back} onChange={(e) => setBack(e.target.value)} placeholder="뒤면 (정답/설명)" rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
-        <div className="flex flex-wrap gap-2 text-xs">
-          <ImgPick label={frontImg ? '앞면 이미지 ✓' : '앞면 이미지'} onChange={(e) => pick(e, setFrontImg)} />
-          <ImgPick label={backImg ? '뒤면 이미지 ✓' : '뒤면 이미지'} onChange={(e) => pick(e, setBackImg)} />
-        </div>
-        {err && <p className="text-xs text-red-600">{err}</p>}
+        <input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="토픽명 (앞면)" className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium" />
+        <textarea value={def} onChange={(e) => setDef(e.target.value)} placeholder="정의" rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
+        <textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="주요내용" rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
+        <input value={kw} onChange={(e) => setKw(e.target.value)} placeholder="키워드 (쉼표 구분)" className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
+        <ImgPick label={img ? '이미지 ✓' : '이미지(선택)'} onChange={pickImg} />
+        {msg && <p className="text-xs text-gray-600">{msg}</p>}
         <button onClick={add} disabled={busy} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-lg text-sm font-medium flex items-center gap-1"><Plus size={16} />{busy ? '처리 중...' : '카드 추가'}</button>
       </div>
     </div>

@@ -5,6 +5,10 @@ export type Topic = { id: string; deck_id: string; name: string; sort_order: num
 export type Card = {
   id: string
   topic_id: string
+  term: string
+  definition: string
+  content: string
+  keywords: string
   front: string
   back: string
   front_image: string | null
@@ -129,15 +133,40 @@ export async function uploadCardImage(file: Blob): Promise<string> {
 }
 export async function createCard(
   topicId: string,
-  c: { front: string; back: string; front_image: string | null; back_image: string | null },
+  c: { term: string; definition: string; content: string; keywords: string; image: string | null },
 ): Promise<Card> {
   const { data, error } = await supabase
     .from('cards')
-    .insert({ topic_id: topicId, ...c })
+    .insert({
+      topic_id: topicId,
+      term: c.term,
+      definition: c.definition,
+      content: c.content,
+      keywords: c.keywords,
+      front_image: c.image,
+    })
     .select('*')
     .single()
   if (error) throw error
   return data as Card
+}
+
+// 엑셀 일괄: 토픽명/정의/주요내용/키워드 행을 카드로 일괄 생성
+export async function bulkCreateCards(
+  topicId: string,
+  rows: { term: string; definition: string; content: string; keywords: string }[],
+): Promise<number> {
+  if (rows.length === 0) return 0
+  const payload = rows.map((r) => ({
+    topic_id: topicId,
+    term: r.term,
+    definition: r.definition,
+    content: r.content,
+    keywords: r.keywords,
+  }))
+  const { error } = await supabase.from('cards').insert(payload)
+  if (error) throw error
+  return rows.length
 }
 export async function deleteCard(id: string): Promise<void> {
   const { error } = await supabase.from('cards').delete().eq('id', id)

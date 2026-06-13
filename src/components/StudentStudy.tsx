@@ -108,12 +108,33 @@ export default function StudentStudy() {
           </div>
           <div ref={playerRef} className="bg-gray-50 rounded-2xl flex items-center justify-center p-1">
             <button onClick={() => setFlipped((f) => !f)} className="w-full max-w-2xl min-h-56 bg-white border border-gray-200 rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center gap-3 text-center">
-              <span className="text-[11px] text-gray-400">{flipped ? '정답 · 설명' : '문제'} (탭하여 뒤집기)</span>
-              {(flipped ? card.back_image : card.front_image) && (
-                <img src={imageUrl((flipped ? card.back_image : card.front_image) as string)} alt="" className="max-h-60 rounded-lg object-contain" />
-              )}
-              {(flipped ? card.back : card.front) && (
-                <p className="text-lg font-medium text-gray-900 whitespace-pre-wrap">{flipped ? card.back : card.front}</p>
+              <span className="text-[11px] text-gray-400">{flipped ? '정의 · 주요내용 · 키워드' : '토픽명'} (탭하여 뒤집기)</span>
+              {!flipped ? (
+                <p className="text-2xl font-bold text-gray-900 whitespace-pre-wrap">{card.term}</p>
+              ) : (
+                <div className="w-full space-y-3 text-left">
+                  {card.front_image && (
+                    <img src={imageUrl(card.front_image)} alt="" className="max-h-52 mx-auto rounded-lg object-contain" />
+                  )}
+                  {card.definition && (
+                    <div>
+                      <p className="text-[11px] font-semibold text-indigo-600">정의</p>
+                      <p className="text-gray-900 whitespace-pre-wrap">{card.definition}</p>
+                    </div>
+                  )}
+                  {card.content && (
+                    <div>
+                      <p className="text-[11px] font-semibold text-indigo-600">주요내용</p>
+                      <p className="text-gray-800 whitespace-pre-wrap">{card.content}</p>
+                    </div>
+                  )}
+                  {card.keywords && (
+                    <div>
+                      <p className="text-[11px] font-semibold text-indigo-600">키워드</p>
+                      <p className="text-gray-600 text-sm">{card.keywords}</p>
+                    </div>
+                  )}
+                </div>
               )}
             </button>
           </div>
