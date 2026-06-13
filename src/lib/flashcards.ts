@@ -151,6 +151,22 @@ export async function createCard(
   return data as Card
 }
 
+// 카드 수정 (image 키를 넘기면 front_image 교체, 생략하면 이미지 유지)
+export async function updateCard(
+  cardId: string,
+  c: { term: string; definition: string; content: string; keywords: string; image?: string | null },
+): Promise<void> {
+  const patch: Record<string, unknown> = {
+    term: c.term,
+    definition: c.definition,
+    content: c.content,
+    keywords: c.keywords,
+  }
+  if (c.image !== undefined) patch.front_image = c.image
+  const { error } = await supabase.from('cards').update(patch).eq('id', cardId)
+  if (error) throw error
+}
+
 // 엑셀 일괄: 토픽명/정의/내용/기타 행을 카드로 일괄 생성 (keywords 컬럼이 "기타" 보관)
 export async function bulkCreateCards(
   topicId: string,

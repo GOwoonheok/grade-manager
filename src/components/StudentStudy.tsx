@@ -1,8 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
-import { BookOpen, ChevronLeft, ChevronRight, Info, Maximize, MessagesSquare, Pause, Play, Shuffle } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { BookOpen, ChevronLeft, ChevronRight, Info, MessagesSquare } from 'lucide-react'
 import {
   getMyStudyStatus,
-  imageUrl,
   listCards,
   listDecks,
   listTopics,
@@ -13,6 +12,7 @@ import {
   type Topic,
 } from '../lib/flashcards'
 import QnaBoard from './QnaBoard'
+import CardPlayer from './CardPlayer'
 
 type View = 'menu' | 'intro' | 'flash' | 'qna'
 
@@ -76,15 +76,6 @@ function Intro() {
 }
 
 // ---------- 플래시카드 학습 ----------
-function shuffleCards(arr: Card[]): Card[] {
-  const a = [...arr]
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    ;[a[i], a[j]] = [a[j], a[i]]
-  }
-  return a
-}
-
 function FlashStudy() {
   const [status, setStatus] = useState<StudyStatus | null>(null)
   const [decks, setDecks] = useState<Deck[]>([])
@@ -92,53 +83,14 @@ function FlashStudy() {
   const [topics, setTopics] = useState<Topic[]>([])
   const [topic, setTopic] = useState<Topic | null>(null)
   const [cards, setCards] = useState<Card[]>([])
-  const [seq, setSeq] = useState<Card[]>([])
-  const [idx, setIdx] = useState(0)
-  const [flipped, setFlipped] = useState(false)
-  const [random, setRandom] = useState(false)
-  const [auto, setAuto] = useState(false)
   const [loading, setLoading] = useState(true)
-  const playerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     getMyStudyStatus().then((s) => { setStatus(s); setLoading(false); if (s === 'approved') listDecks().then(setDecks).catch(() => {}) })
   }, [])
 
   const openDeck = async (d: Deck) => { setDeck(d); setTopic(null); setTopics(await listTopics(d.id)) }
-  const openTopic = async (t: Topic) => {
-    setTopic(t)
-    const cs = await listCards(t.id)
-    setCards(cs); setSeq(random ? shuffleCards(cs) : cs); setIdx(0); setFlipped(false)
-  }
-  const go = (delta: number) => { setFlipped(false); setIdx((i) => Math.min(Math.max(i + delta, 0), seq.length - 1)) }
-  const toggleRandom = () => { const nr = !random; setRandom(nr); setSeq(nr ? shuffleCards(cards) : cards); setIdx(0); setFlipped(false) }
-  const toggleFull = () => { const el = playerRef.current; if (!el) return; if (document.fullscreenElement) document.exitFullscreen(); else el.requestFullscreen?.() }
-
-  // 자동재생: 4초마다 앞→뒤→다음 순환
-  useEffect(() => {
-    if (!auto || !topic || seq.length === 0) return
-    const t = setInterval(() => {
-      setFlipped((f) => {
-        if (!f) return true
-        setIdx((i) => (i + 1) % seq.length)
-        return false
-      })
-    }, 4000)
-    return () => clearInterval(t)
-  }, [auto, topic, seq.length])
-
-  // 키보드: ←/→ 이동, Space 뒤집기
-  useEffect(() => {
-    if (!topic) return
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowLeft') go(-1)
-      else if (e.key === 'ArrowRight') go(1)
-      else if (e.key === ' ') { e.preventDefault(); setFlipped((f) => !f) }
-    }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [topic, seq.length])
+  const openTopic = async (t: Topic) => { setTopic(t); setCards(await listCards(t.id)) }
 
   if (loading) return <p className="text-center text-gray-500 py-12">불러오는 중...</p>
   if (status === 'none')
@@ -183,43 +135,10 @@ function FlashStudy() {
       </div>
     )
 
-  const card = seq[idx]
   return (
     <div>
       <button onClick={() => setTopic(null)} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-3"><ChevronLeft size={16} />{topic.name}</button>
-      {seq.length === 0 || !card ? (
-        <p className="text-center text-gray-400 py-12">카드가 없습니다.</p>
-      ) : (
-        <>
-          <div className="flex items-center justify-between mb-2 gap-2">
-            <span className="text-xs text-gray-400">{idx + 1} / {seq.length}</span>
-            <div className="flex items-center gap-3 text-xs">
-              <button onClick={toggleRandom} className={random ? 'text-indigo-600 font-medium' : 'text-gray-500 hover:text-gray-800'}><Shuffle size={13} className="inline mr-0.5" />{random ? '랜덤' : '순서'}</button>
-              <button onClick={() => setAuto((a) => !a)} className={auto ? 'text-indigo-600 font-medium' : 'text-gray-500 hover:text-gray-800'}>{auto ? <Pause size={13} className="inline mr-0.5" /> : <Play size={13} className="inline mr-0.5" />}자동</button>
-              <button onClick={toggleFull} className="text-gray-500 hover:text-gray-800"><Maximize size={13} className="inline mr-0.5" />전체화면</button>
-            </div>
-          </div>
-          <div ref={playerRef} className="bg-gray-50 rounded-2xl flex items-center justify-center p-1">
-            <button onClick={() => setFlipped((f) => !f)} className="w-full max-w-2xl min-h-56 bg-white border border-gray-200 rounded-2xl shadow-sm p-6 flex flex-col items-center justify-center gap-3 text-center">
-              <span className="text-[11px] text-gray-400">{flipped ? '정의 · 내용 · 기타' : '토픽명'} (탭/Space 뒤집기)</span>
-              {!flipped ? (
-                <p className="text-2xl font-bold text-gray-900 whitespace-pre-wrap">{card.term}</p>
-              ) : (
-                <div className="w-full space-y-3 text-left">
-                  {card.front_image && <img src={imageUrl(card.front_image)} alt="" className="max-h-52 mx-auto rounded-lg object-contain" />}
-                  {card.definition && (<div><p className="text-[11px] font-semibold text-indigo-600">정의</p><p className="text-gray-900 whitespace-pre-wrap">{card.definition}</p></div>)}
-                  {card.content && (<div><p className="text-[11px] font-semibold text-indigo-600">내용</p><p className="text-gray-800 whitespace-pre-wrap">{card.content}</p></div>)}
-                  {card.keywords && (<div><p className="text-[11px] font-semibold text-indigo-600">기타</p><p className="text-gray-600 text-sm whitespace-pre-wrap">{card.keywords}</p></div>)}
-                </div>
-              )}
-            </button>
-          </div>
-          <div className="flex gap-2 mt-4">
-            <button onClick={() => go(-1)} disabled={idx === 0} className="flex-1 py-3 rounded-xl border border-gray-300 text-gray-700 font-medium flex items-center justify-center gap-1 disabled:opacity-40"><ChevronLeft size={18} />이전</button>
-            <button onClick={() => go(1)} disabled={idx >= seq.length - 1} className="flex-1 py-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-medium flex items-center justify-center gap-1 disabled:opacity-40">다음<ChevronRight size={18} /></button>
-          </div>
-        </>
-      )}
+      <CardPlayer cards={cards} />
     </div>
   )
 }
