@@ -12,6 +12,7 @@ import {
   type StudyStatus,
   type Topic,
 } from '../lib/flashcards'
+import QnaBoard from './QnaBoard'
 
 type View = 'menu' | 'intro' | 'flash' | 'qna'
 
@@ -49,7 +50,7 @@ export default function StudentStudy() {
       </button>
       {view === 'intro' && <Intro />}
       {view === 'flash' && <FlashStudy />}
-      {view === 'qna' && <QnaPlaceholder />}
+      {view === 'qna' && <QnaBoard />}
     </div>
   )
 }
@@ -85,18 +86,6 @@ function Intro() {
         </ul>
         <p className="text-xs text-gray-400 mt-2">※ 실제 과목·토픽·카드는 관리자가 등록한 내용으로 제공됩니다.</p>
       </div>
-    </div>
-  )
-}
-
-function QnaPlaceholder() {
-  return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-8 text-center">
-      <div className="inline-flex w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-600 items-center justify-center mb-3">
-        <MessagesSquare size={26} />
-      </div>
-      <h2 className="text-lg font-bold text-gray-900">같이 공부하기 (Q&A)</h2>
-      <p className="text-sm text-gray-500 mt-2">질문·답변 게시판을 준비 중입니다. 곧 제공됩니다.</p>
     </div>
   )
 }

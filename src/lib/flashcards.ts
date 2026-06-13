@@ -187,3 +187,41 @@ export async function setMemberStatus(id: string, status: 'approved' | 'rejected
     .eq('id', id)
   if (error) throw error
 }
+
+// ---------- 같이 공부하기 (Q&A) ----------
+export type QnaPost = {
+  id: string
+  author_id: string
+  parent_id: string | null
+  body: string
+  created_at: string
+  author: { name: string; student_number: string } | null
+}
+export async function listQuestions(): Promise<QnaPost[]> {
+  const { data, error } = await supabase
+    .from('study_qna')
+    .select('*, author:students(name,student_number)')
+    .is('parent_id', null)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return (data as QnaPost[]) ?? []
+}
+export async function listAnswers(questionId: string): Promise<QnaPost[]> {
+  const { data, error } = await supabase
+    .from('study_qna')
+    .select('*, author:students(name,student_number)')
+    .eq('parent_id', questionId)
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return (data as QnaPost[]) ?? []
+}
+export async function postQna(body: string, parentId: string | null): Promise<void> {
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) throw new Error('로그인이 필요합니다')
+  const { error } = await supabase.from('study_qna').insert({ author_id: user.id, parent_id: parentId, body })
+  if (error) throw error
+}
+export async function deleteQna(id: string): Promise<void> {
+  const { error } = await supabase.from('study_qna').delete().eq('id', id)
+  if (error) throw error
+}
