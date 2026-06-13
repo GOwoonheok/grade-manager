@@ -1,5 +1,5 @@
 import { Image as ImageIcon, Pencil, Trash2 } from 'lucide-react'
-import { calcFinalScore, type Course } from '../lib/supabase'
+import { calcFinalScore, type Course, type ExamType } from '../lib/supabase'
 import type { EnrollmentRow } from '../lib/courses'
 
 type Props = {
@@ -8,9 +8,10 @@ type Props = {
   flags: Record<string, { midterm: boolean; final: boolean }>
   onEdit: (r: EnrollmentRow) => void
   onDelete: (r: EnrollmentRow) => void
+  onView: (studentId: string, examType: ExamType, name: string) => void
 }
 
-export default function StudentList({ rows, course, flags, onEdit, onDelete }: Props) {
+export default function StudentList({ rows, course, flags, onEdit, onDelete, onView }: Props) {
   if (rows.length === 0) {
     return (
       <div className="text-center text-gray-500 py-12">
@@ -68,13 +69,21 @@ export default function StudentList({ rows, course, flags, onEdit, onDelete }: P
                 <td className="px-4 py-3 text-right tabular-nums text-gray-700">
                   <span className="inline-flex items-center justify-end gap-1">
                     {r.midterm ?? '-'}
-                    {f?.midterm && <ImageIcon size={15} className="text-indigo-500" aria-label="답안지 이미지 있음" />}
+                    {s && f?.midterm && (
+                      <button onClick={() => onView(s.id, 'midterm', s.name)} className="text-indigo-500 hover:text-indigo-700" title="답안지 보기">
+                        <ImageIcon size={15} />
+                      </button>
+                    )}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-700">
                   <span className="inline-flex items-center justify-end gap-1">
                     {r.final ?? '-'}
-                    {f?.final && <ImageIcon size={15} className="text-indigo-500" aria-label="답안지 이미지 있음" />}
+                    {s && f?.final && (
+                      <button onClick={() => onView(s.id, 'final', s.name)} className="text-indigo-500 hover:text-indigo-700" title="답안지 보기">
+                        <ImageIcon size={15} />
+                      </button>
+                    )}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-700">{r.attendance ?? '-'}</td>

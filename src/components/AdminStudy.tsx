@@ -161,11 +161,11 @@ function TopicCards({ topic, cards, reload }: { topic: Topic; cards: Card[]; rel
         .map((r) => ({
           term: String(r['토픽명'] ?? '').trim(),
           definition: String(r['정의'] ?? '').trim(),
-          content: String(r['주요내용'] ?? '').trim(),
-          keywords: String(r['키워드'] ?? '').trim(),
+          content: String(r['내용'] ?? r['주요내용'] ?? '').trim(),
+          keywords: String(r['기타'] ?? r['키워드'] ?? '').trim(),
         }))
         .filter((r) => r.term)
-      if (rows.length === 0) { setMsg('유효한 행이 없습니다 (헤더: 토픽명/정의/주요내용/키워드).'); return }
+      if (rows.length === 0) { setMsg('유효한 행이 없습니다 (헤더: 토픽명/정의/내용/기타).'); return }
       const n = await bulkCreateCards(topic.id, rows)
       reload()
       setMsg(`${n}개 카드 업로드 완료`)
@@ -173,7 +173,7 @@ function TopicCards({ topic, cards, reload }: { topic: Topic; cards: Card[]; rel
   }
   const downloadTemplate = async () => {
     const XLSX = await import('xlsx')
-    const ws = XLSX.utils.aoa_to_sheet([['토픽명', '정의', '주요내용', '키워드']])
+    const ws = XLSX.utils.aoa_to_sheet([['토픽명', '정의', '내용', '기타']])
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, '카드')
     XLSX.writeFile(wb, `${topic.name}_카드양식.xlsx`)
@@ -206,8 +206,8 @@ function TopicCards({ topic, cards, reload }: { topic: Topic; cards: Card[]; rel
       <div className="bg-gray-50 rounded-lg p-3 space-y-2">
         <input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="토픽명 (앞면)" className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-medium" />
         <textarea value={def} onChange={(e) => setDef(e.target.value)} placeholder="정의" rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
-        <textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="주요내용" rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
-        <input value={kw} onChange={(e) => setKw(e.target.value)} placeholder="키워드 (쉼표 구분)" className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
+        <textarea value={content} onChange={(e) => setContent(e.target.value)} placeholder="내용" rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
+        <textarea value={kw} onChange={(e) => setKw(e.target.value)} placeholder="기타 (키워드·참고 등)" rows={2} className="w-full px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
         <ImgPick label={img ? '이미지 ✓' : '이미지(선택)'} onChange={pickImg} />
         {msg && <p className="text-xs text-gray-600">{msg}</p>}
         <button onClick={add} disabled={busy} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-lg text-sm font-medium flex items-center gap-1"><Plus size={16} />{busy ? '처리 중...' : '카드 추가'}</button>

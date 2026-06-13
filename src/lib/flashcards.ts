@@ -151,7 +151,7 @@ export async function createCard(
   return data as Card
 }
 
-// 엑셀 일괄: 토픽명/정의/주요내용/키워드 행을 카드로 일괄 생성
+// 엑셀 일괄: 토픽명/정의/내용/기타 행을 카드로 일괄 생성 (keywords 컬럼이 "기타" 보관)
 export async function bulkCreateCards(
   topicId: string,
   rows: { term: string; definition: string; content: string; keywords: string }[],

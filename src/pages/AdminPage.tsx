@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { BookOpen, Calculator, ChevronLeft, ChevronRight, LogOut, Plus, Search, Upload, Users } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { type Course } from '../lib/supabase'
+import { type Course, type ExamType } from '../lib/supabase'
 import {
   listMyCourses,
   listEnrollments,
@@ -12,6 +12,7 @@ import {
 import { getAnswerSheetFlags } from '../lib/answerSheets'
 import StudentList from '../components/StudentList'
 import StudentFormModal from '../components/StudentFormModal'
+import AnswerSheetViewer from '../components/AnswerSheetViewer'
 import CourseFormModal from '../components/CourseFormModal'
 import ConfirmDialog from '../components/ConfirmDialog'
 import BrandHeader from '../components/BrandHeader'
@@ -38,6 +39,7 @@ export default function AdminPage() {
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [courseModalOpen, setCourseModalOpen] = useState(false)
   const [excelMode, setExcelMode] = useState<ExcelMode | null>(null)
+  const [viewer, setViewer] = useState<{ studentId: string; examType: ExamType; name: string } | null>(null)
 
   const selectedCourse = useMemo(
     () => courses.find((c) => c.id === courseId) ?? null,
@@ -249,6 +251,7 @@ export default function AdminPage() {
                   flags={sheetFlags}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
+                  onView={(studentId, examType, name) => setViewer({ studentId, examType, name })}
                 />
               )}
 
@@ -301,6 +304,14 @@ export default function AdminPage() {
           if (courseId) loadRoster(courseId) // 이미지 업로드 반영 위해 닫을 때 명단 새로고침
         }}
         onSaved={() => courseId && loadRoster(courseId)}
+      />
+
+      <AnswerSheetViewer
+        open={!!viewer}
+        studentId={viewer?.studentId ?? null}
+        studentName={viewer?.name}
+        examType={viewer?.examType ?? 'midterm'}
+        onClose={() => setViewer(null)}
       />
 
       <CourseFormModal
