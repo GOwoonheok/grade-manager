@@ -19,10 +19,12 @@ import CameraCapture from './CameraCapture'
 type Thumb = { sheet: AnswerSheet; url: string }
 
 export default function AnswerSheetGallery({
+  courseId,
   studentId,
   examType,
   readOnly = false,
 }: {
+  courseId: string
   studentId: string
   examType: ExamType
   readOnly?: boolean
@@ -39,7 +41,7 @@ export default function AnswerSheetGallery({
     setLoading(true)
     setError(null)
     try {
-      const sheets = await listAnswerSheets(studentId, examType)
+      const sheets = await listAnswerSheets(courseId, studentId, examType)
       const urls = await signedUrls(sheets.map((s) => s.path)) // 1회 배치
       setThumbs(sheets.map((s, i) => ({ sheet: s, url: urls[i] })))
     } catch (e: any) {
@@ -52,7 +54,7 @@ export default function AnswerSheetGallery({
   useEffect(() => {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [studentId, examType])
+  }, [courseId, studentId, examType])
 
   const onPick = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
@@ -60,7 +62,7 @@ export default function AnswerSheetGallery({
     setBusy(true)
     setError(null)
     try {
-      for (const f of files) await uploadAnswerSheet(studentId, examType, f)
+      for (const f of files) await uploadAnswerSheet(courseId, studentId, examType, f)
       await load()
     } catch (e: any) {
       setError(e?.message ?? String(e))
@@ -87,7 +89,7 @@ export default function AnswerSheetGallery({
     setBusy(true)
     setError(null)
     try {
-      await uploadAnswerSheet(studentId, examType, blob)
+      await uploadAnswerSheet(courseId, studentId, examType, blob)
       await load()
     } catch (e: any) {
       setError(e?.message ?? String(e))
@@ -237,7 +239,7 @@ export default function AnswerSheetGallery({
             load()
           }}
           onShoot={async (blob) => {
-            await uploadAnswerSheet(studentId, examType, blob)
+            await uploadAnswerSheet(courseId, studentId, examType, blob)
           }}
         />
       )}

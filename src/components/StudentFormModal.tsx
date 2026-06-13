@@ -60,14 +60,14 @@ export default function StudentFormModal({
   }, [initial, open])
 
   useEffect(() => {
-    if (open && initial?.student_id) {
-      getAnswerSheetFlags([initial.student_id])
+    if (open && initial?.student_id && courseId) {
+      getAnswerSheetFlags(courseId, [initial.student_id])
         .then((m) => setImgFlags(m[initial.student_id] ?? { midterm: false, final: false }))
         .catch(() => {})
     } else {
       setImgFlags({ midterm: false, final: false })
     }
-  }, [open, initial])
+  }, [open, initial, courseId])
 
   if (!open) return null
 
@@ -239,10 +239,10 @@ export default function StudentFormModal({
             </Field>
           </div>
 
-          {isEdit && initial?.student && (
+          {isEdit && initial?.student && courseId && (
             <div className="space-y-4 pt-2 border-t">
-              <AnswerSheetGallery studentId={initial.student.id} examType="midterm" />
-              <AnswerSheetGallery studentId={initial.student.id} examType="final" />
+              <AnswerSheetGallery courseId={courseId} studentId={initial.student.id} examType="midterm" />
+              <AnswerSheetGallery courseId={courseId} studentId={initial.student.id} examType="final" />
             </div>
           )}
 

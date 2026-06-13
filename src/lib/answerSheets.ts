@@ -4,12 +4,15 @@ const BUCKET = 'answer-sheets'
 
 // 학생/시험별 답안지 행 목록 (RLS가 접근 범위 통제). 업로드 순.
 export async function listAnswerSheets(
+  courseId: string,
   studentId: string,
   examType?: ExamType,
 ): Promise<AnswerSheet[]> {
+  if (!courseId) return []
   let q = supabase
     .from('answer_sheets')
     .select('*')
+    .eq('course_id', courseId)
     .eq('student_id', studentId)
     .order('created_at', { ascending: true })
   if (examType) q = q.eq('exam_type', examType)
@@ -88,6 +91,7 @@ export async function resizeImage(file: Blob): Promise<Blob> {
 
 // 업로드: 축소 → 객체 저장 → answer_sheets 행 insert → 행 반환 (교수만 RLS 통과)
 export async function uploadAnswerSheet(
+  courseId: string,
   studentId: string,
   examType: ExamType,
   file: Blob,
@@ -100,7 +104,7 @@ export async function uploadAnswerSheet(
   if (upErr) throw upErr
   const { data, error } = await supabase
     .from('answer_sheets')
-    .insert({ student_id: studentId, exam_type: examType, path })
+    .insert({ course_id: courseId, student_id: studentId, exam_type: examType, path })
     .select('*')
     .single()
   if (error) {
@@ -120,8 +124,8 @@ export async function deleteAnswerSheet(sheet: AnswerSheet): Promise<void> {
 
 // 학생 삭제 시 정리: 해당 학생의 모든 답안지 객체 remove.
 // 행은 학생 삭제 시 FK cascade로 지워지므로, 이 함수는 학생 행 삭제 "전"에 호출한다.
-export async function deleteAnswerSheetsForStudent(studentId: string): Promise<void> {
-  const sheets = await listAnswerSheets(studentId)
+export async function deleteAnswerSheetsForStudent(courseId: string, studentId: string): Promise<void> {
+  const sheets = await listAnswerSheets(courseId, studentId)
   if (sheets.length === 0) return
   const { error } = await supabase.storage.from(BUCKET).remove(sheets.map((s) => s.path))
   if (error) throw error
@@ -141,13 +145,15 @@ export async function readClipboardImage(): Promise<Blob | null> {
 
 // 명단 표시용: 학생별 중간/기말 답안지 보유 여부
 export async function getAnswerSheetFlags(
+  courseId: string,
   studentIds: string[],
 ): Promise<Record<string, { midterm: boolean; final: boolean }>> {
   const map: Record<string, { midterm: boolean; final: boolean }> = {}
-  if (studentIds.length === 0) return map
+  if (!courseId || studentIds.length === 0) return map
   const { data, error } = await supabase
     .from('answer_sheets')
     .select('student_id, exam_type')
+    .eq('course_id', courseId)
     .in('student_id', studentIds)
   if (error) throw error
   for (const r of (data as { student_id: string; exam_type: ExamType }[]) ?? []) {

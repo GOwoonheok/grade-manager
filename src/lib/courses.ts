@@ -152,9 +152,11 @@ export async function addStudentToCourse(
     .maybeSingle()
   let studentId = (existing as { id: string } | null)?.id
   if (!studentId) {
+    // 초기 비밀번호 = 학번 + 전화 뒤 4자리 (로그인 화면 안내와 동일, 009 규칙과 일치)
+    const last4 = p.phone.replace(/\D/g, '').slice(-4)
     const { data: su, error: e1 } = await supabaseSignup.auth.signUp({
       email: studentNumberToEmail(sn),
-      password: p.phone.trim(),
+      password: sn + last4,
     })
     if (e1) throw e1
     studentId = su.user?.id
@@ -166,6 +168,7 @@ export async function addStudentToCourse(
       department: p.department.trim(),
       phone: p.phone.trim(),
       role: 'student',
+      must_change_password: true, // 최초 로그인 시 비밀번호 변경 강제
     })
     if (e2) throw e2
   }

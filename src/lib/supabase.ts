@@ -109,6 +109,7 @@ export type ExamType = 'midterm' | 'final'
 
 export type AnswerSheet = {
   id: string
+  course_id: string | null
   student_id: string
   exam_type: ExamType
   path: string

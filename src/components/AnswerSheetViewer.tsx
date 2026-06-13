@@ -5,6 +5,7 @@ import type { ExamType } from '../lib/supabase'
 
 type Props = {
   open: boolean
+  courseId: string | null
   studentId: string | null
   studentName?: string
   examType: ExamType
@@ -14,17 +15,17 @@ type Props = {
 const EXAM_LABEL: Record<ExamType, string> = { midterm: '중간', final: '기말' }
 
 // 명단에서 답안지 아이콘 클릭 시, 해당 학생/시험의 답안지 이미지를 크게 보여주는 팝업.
-export default function AnswerSheetViewer({ open, studentId, studentName, examType, onClose }: Props) {
+export default function AnswerSheetViewer({ open, courseId, studentId, studentName, examType, onClose }: Props) {
   const [urls, setUrls] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
 
   useEffect(() => {
-    if (!open || !studentId) return
+    if (!open || !studentId || !courseId) return
     setLoading(true)
     setUrls([])
     ;(async () => {
       try {
-        const sheets = await listAnswerSheets(studentId, examType)
+        const sheets = await listAnswerSheets(courseId, studentId, examType)
         setUrls(await signedUrls(sheets.map((s) => s.path)))
       } catch {
         setUrls([])
@@ -32,7 +33,7 @@ export default function AnswerSheetViewer({ open, studentId, studentName, examTy
         setLoading(false)
       }
     })()
-  }, [open, studentId, examType])
+  }, [open, courseId, studentId, examType])
 
   if (!open) return null
 

@@ -36,7 +36,52 @@ export default function StudentList({ rows, course, flags, grades, onEdit, onDel
     : null
 
   return (
-    <div className="overflow-x-auto">
+    <>
+      {/* 모바일: 카드 형태 (작은 화면에서 표 대신) */}
+      <div className="md:hidden divide-y">
+        {rows.map((r) => {
+          const finalScore = w ? calcFinalScore(r, w) : null
+          const s = r.student
+          const f = s ? flags[s.id] : undefined
+          return (
+            <div key={r.id} className="p-4 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs text-gray-500">{s?.student_number}</span>
+                    {s?.student_number === '0001' ? (
+                      <span className="text-[10px] text-gray-400">제외</span>
+                    ) : grades[r.id] ? (
+                      <span className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-bold ${GRADE_CLS[grades[r.id]]}`}>
+                        {grades[r.id]}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="font-semibold text-gray-900 truncate">{s?.name}</p>
+                  {s?.department && <p className="text-xs text-gray-500 truncate">{s.department}</p>}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button onClick={() => onEdit(r)} className="p-1.5 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 rounded" title="수정">
+                    <Pencil size={16} />
+                  </button>
+                  <button onClick={() => onDelete(r)} className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded" title="삭제">
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 gap-2 text-center">
+                <MobileScore label="중간" value={r.midterm} hasImg={!!(s && f?.midterm)} onImg={() => s && onView(s.id, 'midterm', s.name)} />
+                <MobileScore label="기말" value={r.final} hasImg={!!(s && f?.final)} onImg={() => s && onView(s.id, 'final', s.name)} />
+                <MobileScore label="출석" value={r.attendance} />
+                <MobileScore label="최종" value={finalScore} highlight />
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* 데스크톱: 표 형태 */}
+      <div className="hidden md:block overflow-x-auto">
       <table className="min-w-full text-sm">
         <thead>
           <tr className="bg-gray-50 text-left text-gray-600 border-b">
@@ -121,6 +166,37 @@ export default function StudentList({ rows, course, flags, grades, onEdit, onDel
           })}
         </tbody>
       </table>
+      </div>
+    </>
+  )
+}
+
+function MobileScore({
+  label,
+  value,
+  highlight,
+  hasImg,
+  onImg,
+}: {
+  label: string
+  value: number | null
+  highlight?: boolean
+  hasImg?: boolean
+  onImg?: () => void
+}) {
+  return (
+    <div className={`rounded-lg py-1.5 ${highlight ? 'bg-indigo-50' : 'bg-gray-50'}`}>
+      <p className="text-[10px] text-gray-500">{label}</p>
+      <p className={`text-sm font-semibold tabular-nums ${highlight ? 'text-indigo-700' : 'text-gray-800'}`}>
+        <span className="inline-flex items-center gap-0.5">
+          {value ?? '-'}
+          {hasImg && onImg && (
+            <button onClick={onImg} className="text-indigo-500 hover:text-indigo-700" title="답안지 보기">
+              <ImageIcon size={13} />
+            </button>
+          )}
+        </span>
+      </p>
     </div>
   )
 }

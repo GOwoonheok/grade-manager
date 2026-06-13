@@ -10,6 +10,11 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+      workbox: {
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+      },
+      devOptions: { enabled: true },
       manifest: {
         name: '학생 성적 관리',
         short_name: '성적관리',

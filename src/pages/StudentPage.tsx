@@ -152,8 +152,8 @@ function CourseBlock({ en, studentId }: { en: MyEnrollment; studentId: string })
           <FileImage className="text-indigo-600" size={16} />
           <span className="text-sm font-semibold text-gray-800">답안지</span>
         </div>
-        <AnswerSheetGallery studentId={studentId} examType="midterm" readOnly />
-        <AnswerSheetGallery studentId={studentId} examType="final" readOnly />
+        <AnswerSheetGallery courseId={c?.id ?? ''} studentId={studentId} examType="midterm" readOnly />
+        <AnswerSheetGallery courseId={c?.id ?? ''} studentId={studentId} examType="final" readOnly />
       </div>
     </section>
   )

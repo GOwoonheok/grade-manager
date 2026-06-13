@@ -67,7 +67,7 @@ export default function AdminPage() {
       const rs = await listEnrollments(cid)
       setRows(rs)
       const ids = rs.map((r) => r.student?.id).filter((x): x is string => !!x)
-      setSheetFlags(await getAnswerSheetFlags(ids))
+      setSheetFlags(await getAnswerSheetFlags(cid, ids))
     } catch (e: any) {
       setError(e?.message ?? String(e))
       setRows([])
@@ -387,6 +387,7 @@ export default function AdminPage() {
 
       <AnswerSheetViewer
         open={!!viewer}
+        courseId={courseId}
         studentId={viewer?.studentId ?? null}
         studentName={viewer?.name}
         examType={viewer?.examType ?? 'midterm'}

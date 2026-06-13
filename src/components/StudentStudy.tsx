@@ -13,6 +13,8 @@ import {
 } from '../lib/flashcards'
 import QnaBoard from './QnaBoard'
 import CardPlayer from './CardPlayer'
+import StudyIntro from './StudyIntro'
+import StudyMenuTile from './StudyMenuTile'
 
 type View = 'menu' | 'intro' | 'flash' | 'qna'
 
@@ -22,9 +24,9 @@ export default function StudentStudy() {
   if (view === 'menu')
     return (
       <div className="space-y-3">
-        <MenuTile icon={<Info size={26} />} title="공공조달관리사 소개" desc="자격 개요와 과목 안내" onClick={() => setView('intro')} />
-        <MenuTile icon={<BookOpen size={26} />} title="플래시카드 학습" desc="과목 · 토픽별 카드로 암기 학습" onClick={() => setView('flash')} />
-        <MenuTile icon={<MessagesSquare size={26} />} title="같이 공부하기 (Q&A)" desc="질문하고 함께 답하기" onClick={() => setView('qna')} />
+        <StudyMenuTile icon={<Info size={26} />} title="공공조달관리사 소개" desc="자격 개요와 과목 안내" onClick={() => setView('intro')} />
+        <StudyMenuTile icon={<BookOpen size={26} />} title="플래시카드 학습" desc="과목 · 토픽별 카드로 암기 학습" onClick={() => setView('flash')} />
+        <StudyMenuTile icon={<MessagesSquare size={26} />} title="같이 공부하기 (Q&A)" desc="질문하고 함께 답하기" onClick={() => setView('qna')} />
       </div>
     )
 
@@ -33,44 +35,9 @@ export default function StudentStudy() {
       <button onClick={() => setView('menu')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-4">
         <ChevronLeft size={16} />메뉴
       </button>
-      {view === 'intro' && <Intro />}
+      {view === 'intro' && <StudyIntro />}
       {view === 'flash' && <FlashStudy />}
       {view === 'qna' && <QnaBoard />}
-    </div>
-  )
-}
-
-function MenuTile({ icon, title, desc, onClick }: { icon: React.ReactNode; title: string; desc: string; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="w-full flex items-center gap-4 bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-md transition text-left">
-      <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">{icon}</div>
-      <div className="flex-1">
-        <h2 className="font-bold text-gray-900">{title}</h2>
-        <p className="text-sm text-gray-500 mt-0.5">{desc}</p>
-      </div>
-      <ChevronRight className="text-gray-300" size={20} />
-    </button>
-  )
-}
-
-function Intro() {
-  return (
-    <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-4">
-      <h2 className="text-lg font-bold text-gray-900">공공조달관리사</h2>
-      <p className="text-sm text-gray-600 leading-relaxed">
-        공공조달관리사는 국가·공공기관의 조달 업무(계획·계약·관리)에 필요한 전문 역량을 검증하는 자격입니다.
-        본 학습 메뉴에서는 과목별 핵심 개념을 <b>플래시카드</b>로 익히고, <b>Q&A</b>로 함께 학습할 수 있습니다.
-      </p>
-      <div>
-        <p className="text-sm font-semibold text-gray-800 mb-2">학습 과목(예시)</p>
-        <ul className="text-sm text-gray-600 space-y-1 list-disc pl-5">
-          <li>공공조달의 이해</li>
-          <li>공공조달 계획분석</li>
-          <li>공공계약관리</li>
-          <li>공공조달 관리실무</li>
-        </ul>
-        <p className="text-xs text-gray-400 mt-2">※ 실제 과목·토픽·카드는 관리자가 등록한 내용으로 제공됩니다.</p>
-      </div>
     </div>
   )
 }

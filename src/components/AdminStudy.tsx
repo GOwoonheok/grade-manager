@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { Check, ChevronDown, ChevronUp, Eye, Image as ImageIcon, Pencil, Plus, Trash2, X as XIcon } from 'lucide-react'
+import { BookOpen, Check, ChevronDown, ChevronLeft, ChevronUp, ClipboardCheck, Eye, Image as ImageIcon, Info, MessagesSquare, Pencil, Plus, Trash2, X as XIcon } from 'lucide-react'
 import {
   bulkCreateCards,
   createCard,
@@ -24,6 +24,9 @@ import {
 } from '../lib/flashcards'
 import { readClipboardImage, resizeImage } from '../lib/answerSheets'
 import CardPlayer from './CardPlayer'
+import QnaBoard from './QnaBoard'
+import StudyIntro from './StudyIntro'
+import StudyMenuTile from './StudyMenuTile'
 
 const STATUS_LABEL: Record<string, string> = { pending: '대기', approved: '승인', rejected: '거부' }
 const STATUS_CLS: Record<string, string> = {
@@ -32,7 +35,10 @@ const STATUS_CLS: Record<string, string> = {
   rejected: 'text-red-600',
 }
 
+type View = 'menu' | 'intro' | 'flash' | 'qna' | 'approve'
+
 export default function AdminStudy() {
+  const [view, setView] = useState<View>('menu')
   const [decks, setDecks] = useState<Deck[]>([])
   const [deck, setDeck] = useState<Deck | null>(null)
   const [topics, setTopics] = useState<Topic[]>([])
@@ -61,10 +67,30 @@ export default function AdminStudy() {
   const removeTopic = async (id: string) => { if (!window.confirm('토픽과 카드를 삭제할까요?')) return; await deleteTopic(id); if (topic?.id === id) setTopic(null); await reloadTopics() }
   const decide = async (m: StudyMember, s: 'approved' | 'rejected') => { await setMemberStatus(m.id, s); await loadMembers() }
 
-  return (
-    <div className="space-y-6">
-      {err && <p className="text-sm text-red-600">{err}</p>}
+  const pending = members.filter((m) => m.status === 'pending').length
 
+  if (view === 'menu')
+    return (
+      <div className="space-y-3">
+        {err && <p className="text-sm text-red-600">{err}</p>}
+        <StudyMenuTile icon={<Info size={26} />} title="공공조달관리사 소개" desc="자격 개요와 과목 안내" onClick={() => setView('intro')} />
+        <StudyMenuTile icon={<BookOpen size={26} />} title="플래시카드 관리" desc="과목 · 토픽 · 카드 등록/수정" onClick={() => setView('flash')} />
+        <StudyMenuTile icon={<MessagesSquare size={26} />} title="같이 공부하기 (Q&A)" desc="질문 확인 · 답변" onClick={() => setView('qna')} />
+        <StudyMenuTile icon={<ClipboardCheck size={26} />} title="학습 신청 승인" desc={pending > 0 ? `${pending}건 대기중` : '신청 내역 관리'} onClick={() => setView('approve')} />
+      </div>
+    )
+
+  return (
+    <div>
+      <button onClick={() => setView('menu')} className="flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 mb-4">
+        <ChevronLeft size={16} />메뉴
+      </button>
+      {err && <p className="text-sm text-red-600 mb-3">{err}</p>}
+
+      {view === 'intro' && <StudyIntro />}
+      {view === 'qna' && <QnaBoard />}
+
+      {view === 'flash' && (
       <section className="bg-white border border-gray-200 rounded-2xl p-4">
         <h2 className="text-sm font-semibold text-gray-800 mb-3">과목 · 토픽 · 카드 관리</h2>
 
@@ -103,7 +129,9 @@ export default function AdminStudy() {
 
         {topic && <TopicCards topic={topic} cards={cards} reload={reloadCards} />}
       </section>
+      )}
 
+      {view === 'approve' && (
       <section className="bg-white border border-gray-200 rounded-2xl p-4">
         <h2 className="text-sm font-semibold text-gray-800 mb-3">학습 신청 승인</h2>
         {members.length === 0 ? (
@@ -127,6 +155,7 @@ export default function AdminStudy() {
           </div>
         )}
       </section>
+      )}
     </div>
   )
 }
@@ -229,7 +258,7 @@ function TopicCards({ topic, cards, reload }: { topic: Topic; cards: Card[]; rel
       </div>
       {preview && (
         <div className="mb-3 border border-gray-200 rounded-xl p-3">
-          <CardPlayer cards={cards} />
+          <CardPlayer cards={cards} preview />
         </div>
       )}
       <div className="space-y-2 mb-3 max-h-56 overflow-y-auto">
