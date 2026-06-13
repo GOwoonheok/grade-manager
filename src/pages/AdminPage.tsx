@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { BookOpen, Calculator, LogOut, Plus, Search, Users } from 'lucide-react'
+import { BookOpen, Calculator, LogOut, Plus, Search, Upload, Users } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { type Course } from '../lib/supabase'
 import {
@@ -14,6 +14,7 @@ import StudentFormModal from '../components/StudentFormModal'
 import CourseFormModal from '../components/CourseFormModal'
 import ConfirmDialog from '../components/ConfirmDialog'
 import BrandHeader from '../components/BrandHeader'
+import ExcelUploadModal, { type ExcelMode } from '../components/ExcelUploadModal'
 
 const courseLabel = (c: Course) => `${c.year}-${c.semester}학기 · ${c.subject_name}`
 
@@ -32,6 +33,7 @@ export default function AdminPage() {
   const [deleting, setDeleting] = useState<EnrollmentRow | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
   const [courseModalOpen, setCourseModalOpen] = useState(false)
+  const [excelMode, setExcelMode] = useState<ExcelMode | null>(null)
 
   const selectedCourse = useMemo(
     () => courses.find((c) => c.id === courseId) ?? null,
@@ -184,28 +186,36 @@ export default function AdminPage() {
 
             {/* 학생 명단 카드 */}
             <div className="bg-white rounded-2xl shadow-sm">
-              <div className="flex flex-col sm:flex-row gap-3 p-4 border-b">
-                <div className="relative flex-1">
-                  <Search
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                    size={16}
-                  />
-                  <input
-                    type="text"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                    placeholder="이름·학번·학과로 검색"
-                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                  />
+              <div className="flex flex-col gap-3 p-4 border-b">
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative flex-1">
+                    <Search
+                      className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                      size={16}
+                    />
+                    <input
+                      type="text"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      placeholder="이름·학번·학과로 검색"
+                      className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                    />
+                  </div>
+                  <button
+                    onClick={handleAdd}
+                    disabled={!courseId}
+                    className="flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-lg font-medium"
+                  >
+                    <Plus size={18} />
+                    학생 추가
+                  </button>
                 </div>
-                <button
-                  onClick={handleAdd}
-                  disabled={!courseId}
-                  className="flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-lg font-medium"
-                >
-                  <Plus size={18} />
-                  학생 추가
-                </button>
+                <div className="flex flex-wrap gap-2">
+                  <ExcelButton onClick={() => setExcelMode({ kind: 'register' })} label="신규 일괄 등록" emphasis />
+                  <ExcelButton onClick={() => setExcelMode({ kind: 'score', field: 'midterm' })} label="중간 점수 업로드" />
+                  <ExcelButton onClick={() => setExcelMode({ kind: 'score', field: 'final' })} label="기말 점수 업로드" />
+                  <ExcelButton onClick={() => setExcelMode({ kind: 'score', field: 'attendance' })} label="출석 점수 업로드" />
+                </div>
               </div>
 
               {error && (
@@ -263,6 +273,17 @@ export default function AdminPage() {
         onCancel={() => setConfirmOpen(false)}
         loading={deleteLoading}
       />
+
+      {excelMode && courseId && (
+        <ExcelUploadModal
+          open={!!excelMode}
+          mode={excelMode}
+          courseId={courseId}
+          roster={rows.flatMap((r) => (r.student ? [r.student] : []))}
+          onClose={() => setExcelMode(null)}
+          onDone={() => courseId && loadRoster(courseId)}
+        />
+      )}
     </div>
   )
 }
@@ -368,5 +389,29 @@ function WeightField({
         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
       </div>
     </div>
+  )
+}
+
+function ExcelButton({
+  onClick,
+  label,
+  emphasis,
+}: {
+  onClick: () => void
+  label: string
+  emphasis?: boolean
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg font-medium border ${
+        emphasis
+          ? 'border-emerald-600 text-emerald-700 hover:bg-emerald-50'
+          : 'border-gray-300 text-gray-700 hover:bg-gray-50'
+      }`}
+    >
+      <Upload size={16} />
+      {label}
+    </button>
   )
 }

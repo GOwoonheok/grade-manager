@@ -4,6 +4,7 @@ import {
   studentNumberToEmail,
   type Course,
   type Enrollment,
+  type ScoreField,
   type Student,
 } from './supabase'
 
@@ -77,6 +78,30 @@ export async function updateEnrollmentScores(
 export async function removeEnrollment(id: string): Promise<void> {
   const { error } = await supabase.from('enrollments').delete().eq('id', id)
   if (error) throw error
+}
+
+// 엑셀 점수 일괄: 과목 내 학번으로 해당 enrollment 점수 1건 갱신.
+export async function updateEnrollmentScoreByNumber(
+  courseId: string,
+  studentNumber: string,
+  field: ScoreField,
+  value: number,
+): Promise<'ok' | 'not_found'> {
+  const { data: st } = await supabase
+    .from('students')
+    .select('id')
+    .eq('student_number', studentNumber)
+    .maybeSingle()
+  const sid = (st as { id: string } | null)?.id
+  if (!sid) return 'not_found'
+  const { data, error } = await supabase
+    .from('enrollments')
+    .update({ [field]: value })
+    .eq('course_id', courseId)
+    .eq('student_id', sid)
+    .select('id')
+  if (error) throw error
+  return data && data.length > 0 ? 'ok' : 'not_found'
 }
 
 // 과목에 학생 추가: 기존 학번이면 그 학생을 수강등록, 없으면 계정 생성 후 등록.

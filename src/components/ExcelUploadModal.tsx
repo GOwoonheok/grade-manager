@@ -1,14 +1,8 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import { X, Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Download } from 'lucide-react'
-import {
-  supabase,
-  supabaseSignup,
-  studentNumberToEmail,
-  SCORE_LABEL,
-  type ScoreField,
-  type Student,
-} from '../lib/supabase'
+import { SCORE_LABEL, type ScoreField, type Student } from '../lib/supabase'
 import { downloadScoreTemplate } from '../lib/excelTemplate'
+import { addStudentToCourse, updateEnrollmentScoreByNumber } from '../lib/courses'
 
 type RegisterRow = {
   name: string
@@ -41,9 +35,10 @@ export type ExcelMode =
 type Props = {
   open: boolean
   mode: ExcelMode
+  courseId: string
   onClose: () => void
   onDone: () => void
-  students: Pick<Student, 'student_number' | 'name'>[]
+  roster: Pick<Student, 'student_number' | 'name'>[]
 }
 
 const REGISTER_HEADER_MAP: Record<string, keyof RegisterRow> = {
@@ -58,7 +53,7 @@ const REGISTER_HEADER_MAP: Record<string, keyof RegisterRow> = {
 
 const isScoreInRange = (n: number) => !isNaN(n) && n >= 0 && n <= 100
 
-export default function ExcelUploadModal({ open, mode, onClose, onDone, students }: Props) {
+export default function ExcelUploadModal({ open, mode, courseId, onClose, onDone, roster }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [registerRows, setRegisterRows] = useState<RegisterRow[]>([])
   const [scoreRows, setScoreRows] = useState<ScoreRow[]>([])
@@ -188,17 +183,7 @@ export default function ExcelUploadModal({ open, mode, onClose, onDone, students
           continue
         }
         try {
-          const email = studentNumberToEmail(row.student_number)
-          const { data, error: e1 } = await supabaseSignup.auth.signUp({
-            email,
-            password: row.phone,
-          })
-          if (e1) throw e1
-          const newId = data.user?.id
-          if (!newId) throw new Error('사용자 ID 없음')
-
-          const { error: e2 } = await supabase.from('students').insert({
-            id: newId,
+          await addStudentToCourse(courseId, {
             student_number: row.student_number,
             name: row.name,
             department: row.department,
@@ -206,9 +191,7 @@ export default function ExcelUploadModal({ open, mode, onClose, onDone, students
             midterm: row.midterm,
             final: row.final,
             attendance: row.attendance,
-            role: 'student',
           })
-          if (e2) throw e2
           out.push({
             student_number: row.student_number,
             name: row.name,
@@ -218,7 +201,7 @@ export default function ExcelUploadModal({ open, mode, onClose, onDone, students
           const msg: string = err?.message ?? String(err)
           let nice = msg
           if (msg.includes('already') || msg.includes('duplicate'))
-            nice = '이미 존재하는 학번/이메일'
+            nice = '이미 이 과목에 등록됨'
           out.push({
             student_number: row.student_number,
             name: row.name,
@@ -242,26 +225,21 @@ export default function ExcelUploadModal({ open, mode, onClose, onDone, students
           continue
         }
         try {
-          const { data, error } = await supabase
-            .from('students')
-            .update({ [field]: row.score })
-            .eq('student_number', row.student_number)
-            .eq('role', 'student')
-            .select('name')
-          if (error) throw error
-          if (!data || data.length === 0) {
-            out.push({
-              student_number: row.student_number,
-              ok: false,
-              error: '등록되지 않은 학번',
-            })
-          } else {
-            out.push({
-              student_number: row.student_number,
-              name: data[0].name,
-              ok: true,
-            })
-          }
+          const res = await updateEnrollmentScoreByNumber(
+            courseId,
+            row.student_number,
+            field,
+            row.score as number,
+          )
+          out.push(
+            res === 'ok'
+              ? { student_number: row.student_number, ok: true }
+              : {
+                  student_number: row.student_number,
+                  ok: false,
+                  error: '이 과목에 등록되지 않은 학번',
+                },
+          )
         } catch (err: any) {
           out.push({
             student_number: row.student_number,
@@ -336,11 +314,11 @@ export default function ExcelUploadModal({ open, mode, onClose, onDone, students
               {mode.kind === 'score' && (
                 <button
                   type="button"
-                  onClick={() => downloadScoreTemplate(mode.field, students)}
+                  onClick={() => downloadScoreTemplate(mode.field, roster)}
                   className="mt-3 flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700 font-medium"
                 >
                   <Download size={16} />
-                  표준 양식 다운로드 (.xlsx) — 재학생 {students.length}명 자동 채움
+                  표준 양식 다운로드 (.xlsx) — 수강생 {roster.length}명 자동 채움
                 </button>
               )}
               {parseError && (
