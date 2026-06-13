@@ -14,6 +14,7 @@ import {
   type ScoreField,
   type Student,
 } from '../lib/supabase'
+import { deleteAnswerSheetsForStudent } from '../lib/answerSheets'
 import StudentList from '../components/StudentList'
 import StudentFormModal from '../components/StudentFormModal'
 import ConfirmDialog from '../components/ConfirmDialog'
@@ -94,6 +95,12 @@ export default function AdminPage() {
   const confirmDelete = async () => {
     if (!deleting) return
     setDeleteLoading(true)
+    try {
+      await deleteAnswerSheetsForStudent(deleting.id)
+    } catch (err) {
+      // 답안지 객체 정리 실패는 치명적이지 않음 — 로그만 남기고 학생 삭제 진행
+      console.error('답안지 정리 실패:', err)
+    }
     const { error: e } = await supabase
       .from('students')
       .delete()
