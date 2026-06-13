@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { Trash2, Plus, Loader2 } from 'lucide-react'
+import { Trash2, Plus, Camera, Loader2 } from 'lucide-react'
 import {
   listAnswerSheets,
   signedUrl,
@@ -7,6 +7,7 @@ import {
   deleteAnswerSheet,
 } from '../lib/answerSheets'
 import { SCORE_LABEL, type AnswerSheet, type ExamType } from '../lib/supabase'
+import CameraCapture from './CameraCapture'
 
 type Thumb = { sheet: AnswerSheet; url: string }
 
@@ -23,6 +24,7 @@ export default function AnswerSheetGallery({
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [cameraOpen, setCameraOpen] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const load = async () => {
@@ -82,19 +84,31 @@ export default function AnswerSheetGallery({
           {SCORE_LABEL[examType]} 답안지
         </span>
         {!readOnly && (
-          <label className="cursor-pointer inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700">
-            <Plus size={16} />
-            사진 추가
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              multiple
-              onChange={onPick}
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setCameraOpen(true)}
               disabled={busy}
-              className="hidden"
-            />
-          </label>
+              className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 disabled:opacity-50"
+            >
+              <Camera size={16} />
+              촬영
+            </button>
+            <span className="text-gray-300">|</span>
+            <label className="cursor-pointer inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700">
+              <Plus size={16} />
+              파일 선택
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                multiple
+                onChange={onPick}
+                disabled={busy}
+                className="hidden"
+              />
+            </label>
+          </div>
         )}
       </div>
 
@@ -147,6 +161,20 @@ export default function AnswerSheetGallery({
         </p>
       )}
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+
+      {!readOnly && (
+        <CameraCapture
+          open={cameraOpen}
+          title={`${SCORE_LABEL[examType]} 답안지 촬영`}
+          onClose={() => {
+            setCameraOpen(false)
+            load()
+          }}
+          onShoot={async (blob) => {
+            await uploadAnswerSheet(studentId, examType, blob)
+          }}
+        />
+      )}
     </div>
   )
 }

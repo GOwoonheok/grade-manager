@@ -28,7 +28,7 @@ export async function signedUrl(path: string): Promise<string> {
 }
 
 // 업로드 전 클라이언트 축소 (최대 변 1600px, JPEG 0.85). jpg/png/webp만 디코드 가능.
-export async function resizeImage(file: File): Promise<Blob> {
+export async function resizeImage(file: Blob): Promise<Blob> {
   const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => resolve(reader.result as string)
@@ -68,7 +68,7 @@ export async function resizeImage(file: File): Promise<Blob> {
 export async function uploadAnswerSheet(
   studentId: string,
   examType: ExamType,
-  file: File,
+  file: Blob,
 ): Promise<AnswerSheet> {
   const blob = await resizeImage(file)
   const path = `${studentId}/${examType}/${crypto.randomUUID()}.jpg`
