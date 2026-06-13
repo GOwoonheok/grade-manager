@@ -54,6 +54,14 @@ export async function updateCourseWeights(
   if (error) throw error
 }
 
+export async function updateCourseGrades(
+  courseId: string,
+  g: { grade_a_ratio: number; grade_b_ratio: number; grade_c_ratio: number },
+): Promise<void> {
+  const { error } = await supabase.from('courses').update(g).eq('id', courseId)
+  if (error) throw error
+}
+
 // 과목 수강생 목록(점수 포함). 학번순.
 export async function listEnrollments(courseId: string): Promise<EnrollmentRow[]> {
   const { data, error } = await supabase

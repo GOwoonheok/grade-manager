@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { BookOpen, Calculator, ChevronLeft, ChevronRight, LogOut, Plus, Search, Upload, Users } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
-import { type Course, type ExamType } from '../lib/supabase'
+import { assignRelativeGrades, calcFinalScore, type Course, type ExamType } from '../lib/supabase'
 import {
   listMyCourses,
   listEnrollments,
   removeEnrollment,
+  updateCourseGrades,
   updateCourseWeights,
   type EnrollmentRow,
 } from '../lib/courses'
@@ -107,6 +108,26 @@ export default function AdminPage() {
   const pageSafe = Math.min(page, totalPages)
   const paged = filtered.slice((pageSafe - 1) * pageSize, pageSafe * pageSize)
 
+  // 상대평가 등급 (0001 제외, 전체 명단 기준으로 산정 — 페이지와 무관)
+  const eligibleCount = useMemo(
+    () => rows.filter((r) => r.student?.student_number !== '0001').length,
+    [rows],
+  )
+  const grades = useMemo<Record<string, 'A' | 'B' | 'C'>>(() => {
+    if (!selectedCourse) return {}
+    const w = {
+      midterm_weight: selectedCourse.midterm_weight,
+      final_weight: selectedCourse.final_weight,
+      attendance_weight: selectedCourse.attendance_weight,
+    }
+    const items = rows.map((r) => ({
+      id: r.id,
+      studentNumber: r.student?.student_number ?? '',
+      finalScore: calcFinalScore(r, w),
+    }))
+    return assignRelativeGrades(items, { a: selectedCourse.grade_a_ratio ?? 30, b: selectedCourse.grade_b_ratio ?? 40 })
+  }, [rows, selectedCourse])
+
   const handleAdd = () => {
     setEditing(null)
     setFormOpen(true)
@@ -198,6 +219,7 @@ export default function AdminPage() {
             {selectedCourse && (
               <WeightSettings
                 course={selectedCourse}
+                eligibleCount={eligibleCount}
                 onSaved={() => loadCourses()}
               />
             )}
@@ -249,6 +271,7 @@ export default function AdminPage() {
                   rows={paged}
                   course={selectedCourse}
                   flags={sheetFlags}
+                  grades={grades}
                   onEdit={handleEdit}
                   onDelete={handleDelete}
                   onView={(studentId, examType, name) => setViewer({ studentId, examType, name })}
@@ -351,10 +374,13 @@ export default function AdminPage() {
   )
 }
 
-function WeightSettings({ course, onSaved }: { course: Course; onSaved: () => void }) {
+function WeightSettings({ course, eligibleCount, onSaved }: { course: Course; eligibleCount: number; onSaved: () => void }) {
   const [m, setM] = useState('')
   const [f, setF] = useState('')
   const [a, setA] = useState('')
+  const [ga, setGa] = useState('')
+  const [gb, setGb] = useState('')
+  const [gc, setGc] = useState('')
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
@@ -362,17 +388,24 @@ function WeightSettings({ course, onSaved }: { course: Course; onSaved: () => vo
     setM(course.midterm_weight.toString())
     setF(course.final_weight.toString())
     setA(course.attendance_weight.toString())
+    setGa((course.grade_a_ratio ?? 30).toString())
+    setGb((course.grade_b_ratio ?? 40).toString())
+    setGc((course.grade_c_ratio ?? 30).toString())
     setMsg(null)
   }, [course])
 
   const sum = (Number(m) || 0) + (Number(f) || 0) + (Number(a) || 0)
   const sumOk = Math.abs(sum - 100) < 0.01
+  const cnt = (ratio: string) => Math.round((eligibleCount * (Number(ratio) || 0)) / 100)
+  const aN = cnt(ga)
+  const bN = cnt(gb)
+  const cN = Math.max(0, eligibleCount - aN - bN)
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
     setMsg(null)
     if (!sumOk) {
-      setMsg({ type: 'err', text: `합계가 100이어야 합니다 (현재: ${sum}).` })
+      setMsg({ type: 'err', text: `가중치 합계가 100이어야 합니다 (현재: ${sum}).` })
       return
     }
     setSaving(true)
@@ -382,7 +415,12 @@ function WeightSettings({ course, onSaved }: { course: Course; onSaved: () => vo
         final_weight: Number(f),
         attendance_weight: Number(a),
       })
-      setMsg({ type: 'ok', text: '가중치가 저장되었습니다.' })
+      await updateCourseGrades(course.id, {
+        grade_a_ratio: Number(ga) || 0,
+        grade_b_ratio: Number(gb) || 0,
+        grade_c_ratio: Number(gc) || 0,
+      })
+      setMsg({ type: 'ok', text: '저장되었습니다.' })
       onSaved()
     } catch (err: any) {
       setMsg({ type: 'err', text: '저장 실패: ' + (err?.message ?? err) })
@@ -393,37 +431,72 @@ function WeightSettings({ course, onSaved }: { course: Course; onSaved: () => vo
 
   return (
     <section className="bg-white rounded-2xl shadow-sm p-4">
-      <div className="flex items-center gap-2 mb-3">
-        <Calculator className="text-indigo-600" size={18} />
-        <h2 className="text-sm font-semibold text-gray-800">최종점수 가중치 (합계 100)</h2>
-      </div>
-      <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
-        <WeightField label="중간" value={m} onChange={setM} />
-        <WeightField label="기말" value={f} onChange={setF} />
-        <WeightField label="출석" value={a} onChange={setA} />
-        <div
-          className={`text-sm tabular-nums px-3 py-2 rounded-lg border ${
-            sumOk
-              ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-              : 'border-amber-200 bg-amber-50 text-amber-700'
-          }`}
-        >
-          합계 {sum}
+      <form onSubmit={submit} className="space-y-3">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex items-center gap-2 mr-1">
+            <Calculator className="text-indigo-600" size={18} />
+            <h2 className="text-sm font-semibold text-gray-800">가중치 (합계 100)</h2>
+          </div>
+          <WeightField label="중간" value={m} onChange={setM} />
+          <WeightField label="기말" value={f} onChange={setF} />
+          <WeightField label="출석" value={a} onChange={setA} />
+          <div
+            className={`text-sm tabular-nums px-3 py-2 rounded-lg border ${
+              sumOk
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
+                : 'border-amber-200 bg-amber-50 text-amber-700'
+            }`}
+          >
+            합계 {sum}
+          </div>
         </div>
-        <button
-          type="submit"
-          disabled={saving || !sumOk}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-lg text-sm font-medium"
-        >
-          {saving ? '저장 중...' : '저장'}
-        </button>
-        {msg && (
-          <span className={`text-sm ${msg.type === 'ok' ? 'text-emerald-700' : 'text-red-700'}`}>
-            {msg.text}
-          </span>
-        )}
+        <div className="flex flex-wrap items-end gap-3 border-t border-gray-100 pt-3">
+          <div className="flex items-center gap-2 mr-1">
+            <h2 className="text-sm font-semibold text-gray-800">상대평가 등급비율</h2>
+            <span className="text-xs text-gray-400">0001 제외 {eligibleCount}명</span>
+          </div>
+          <GradeField label="A" value={ga} onChange={setGa} hint={`${aN}명`} />
+          <GradeField label="B" value={gb} onChange={setGb} hint={`${bN}명`} />
+          <GradeField label="C" value={gc} onChange={setGc} hint={`나머지 ${cN}명`} />
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            type="submit"
+            disabled={saving || !sumOk}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-lg text-sm font-medium"
+          >
+            {saving ? '저장 중...' : '저장'}
+          </button>
+          {msg && (
+            <span className={`text-sm ${msg.type === 'ok' ? 'text-emerald-700' : 'text-red-700'}`}>
+              {msg.text}
+            </span>
+          )}
+        </div>
       </form>
     </section>
+  )
+}
+
+function GradeField({ label, value, onChange, hint }: { label: string; value: string; onChange: (v: string) => void; hint: string }) {
+  return (
+    <div>
+      <label className="block text-xs font-medium text-gray-600 mb-1">
+        {label} <span className="text-gray-400">({hint})</span>
+      </label>
+      <div className="relative">
+        <input
+          type="number"
+          step="1"
+          min="0"
+          max="100"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className="w-24 pl-3 pr-7 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm tabular-nums"
+        />
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
+      </div>
+    </div>
   )
 }
 

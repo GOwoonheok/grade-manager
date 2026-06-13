@@ -2,16 +2,23 @@ import { Image as ImageIcon, Pencil, Trash2 } from 'lucide-react'
 import { calcFinalScore, type Course, type ExamType } from '../lib/supabase'
 import type { EnrollmentRow } from '../lib/courses'
 
+const GRADE_CLS: Record<string, string> = {
+  A: 'bg-emerald-100 text-emerald-700',
+  B: 'bg-indigo-100 text-indigo-700',
+  C: 'bg-amber-100 text-amber-700',
+}
+
 type Props = {
   rows: EnrollmentRow[]
   course: Course | null
   flags: Record<string, { midterm: boolean; final: boolean }>
+  grades: Record<string, 'A' | 'B' | 'C'>
   onEdit: (r: EnrollmentRow) => void
   onDelete: (r: EnrollmentRow) => void
   onView: (studentId: string, examType: ExamType, name: string) => void
 }
 
-export default function StudentList({ rows, course, flags, onEdit, onDelete, onView }: Props) {
+export default function StudentList({ rows, course, flags, grades, onEdit, onDelete, onView }: Props) {
   if (rows.length === 0) {
     return (
       <div className="text-center text-gray-500 py-12">
@@ -41,6 +48,7 @@ export default function StudentList({ rows, course, flags, onEdit, onDelete, onV
             <th className="px-4 py-3 font-semibold text-right">기말</th>
             <th className="px-4 py-3 font-semibold text-right">출석</th>
             <th className="px-4 py-3 font-semibold text-right">최종</th>
+            <th className="px-4 py-3 font-semibold text-center">등급</th>
             <th className="px-4 py-3 font-semibold w-12"></th>
           </tr>
         </thead>
@@ -88,6 +96,15 @@ export default function StudentList({ rows, course, flags, onEdit, onDelete, onV
                 </td>
                 <td className="px-4 py-3 text-right tabular-nums text-gray-700">{r.attendance ?? '-'}</td>
                 <td className="px-4 py-3 text-right tabular-nums font-semibold text-indigo-700">{finalScore ?? '-'}</td>
+                <td className="px-4 py-3 text-center">
+                  {s?.student_number === '0001' ? (
+                    <span className="text-xs text-gray-400">제외</span>
+                  ) : grades[r.id] ? (
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${GRADE_CLS[grades[r.id]]}`}>{grades[r.id]}</span>
+                  ) : (
+                    <span className="text-gray-300">-</span>
+                  )}
+                </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center justify-end">
                     <button
