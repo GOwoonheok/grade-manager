@@ -79,14 +79,14 @@ export function calcFinalScore(
   return Math.round((total / 100) * 100) / 100 // 소수 둘째자리
 }
 
-// 상대평가 등급: 학번 0001(가상인물)은 제외. 최종점수 내림차순 순위로
-// A=상위 a%, B=다음 b%, 나머지=C. 최종점수 미산정(NULL)은 최하위로 간주.
+// 상대평가 등급: 학번 0001(가상인물) 및 최종점수 미산정(NULL) 학생은 제외.
+// (최종점수가 계산된 학생만 대상) 최종점수 내림차순 순위로 A=상위 a%, B=다음 b%, 나머지=C.
 export function assignRelativeGrades(
   items: { id: string; studentNumber: string; finalScore: number | null }[],
   ratios: { a: number; b: number },
 ): Record<string, 'A' | 'B' | 'C'> {
-  const eligible = items.filter((it) => it.studentNumber !== '0001')
-  const sorted = [...eligible].sort((x, y) => (y.finalScore ?? -1) - (x.finalScore ?? -1))
+  const eligible = items.filter((it) => it.studentNumber !== '0001' && it.finalScore != null)
+  const sorted = [...eligible].sort((x, y) => (y.finalScore as number) - (x.finalScore as number))
   const n = sorted.length
   const aCut = Math.round((n * ratios.a) / 100)
   const bCut = aCut + Math.round((n * ratios.b) / 100)

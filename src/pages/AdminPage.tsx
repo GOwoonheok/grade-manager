@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { BookOpen, Calculator, ChevronLeft, ChevronRight, LogOut, Plus, Search, Upload, Users } from 'lucide-react'
+import { ArrowUpDown, BookOpen, Calculator, ChevronLeft, ChevronRight, LogOut, Plus, Search, Upload, Users } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { assignRelativeGrades, calcFinalScore, type Course, type ExamType } from '../lib/supabase'
 import {
@@ -33,6 +33,7 @@ export default function AdminPage() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
+  const [sortBy, setSortBy] = useState<'number' | 'final'>('number')
 
   const [formOpen, setFormOpen] = useState(false)
   const [editing, setEditing] = useState<EnrollmentRow | null>(null)
@@ -101,20 +102,41 @@ export default function AdminPage() {
     })
   }, [rows, search])
 
-  // 검색/과목/페이지크기 변경 시 첫 페이지로
+  // 검색/과목/페이지크기/정렬 변경 시 첫 페이지로
   useEffect(() => {
     setPage(1)
-  }, [search, courseId, pageSize])
+  }, [search, courseId, pageSize, sortBy])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  // 정렬: 기본 학번 오름차순, 교수가 '최종점수 내림차순' 토글
+  const sorted = useMemo(() => {
+    const arr = [...filtered]
+    if (sortBy === 'final' && selectedCourse) {
+      const w = {
+        midterm_weight: selectedCourse.midterm_weight,
+        final_weight: selectedCourse.final_weight,
+        attendance_weight: selectedCourse.attendance_weight,
+      }
+      arr.sort((a, b) => (calcFinalScore(b, w) ?? -1) - (calcFinalScore(a, w) ?? -1))
+    } else {
+      arr.sort((a, b) => (a.student?.student_number ?? '').localeCompare(b.student?.student_number ?? ''))
+    }
+    return arr
+  }, [filtered, sortBy, selectedCourse])
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
   const pageSafe = Math.min(page, totalPages)
-  const paged = filtered.slice((pageSafe - 1) * pageSize, pageSafe * pageSize)
+  const paged = sorted.slice((pageSafe - 1) * pageSize, pageSafe * pageSize)
 
-  // 상대평가 등급 (0001 제외, 전체 명단 기준으로 산정 — 페이지와 무관)
-  const eligibleCount = useMemo(
-    () => rows.filter((r) => r.student?.student_number !== '0001').length,
-    [rows],
-  )
+  // 상대평가 등급 (학번 0001 및 최종 미산정 제외, 전체 명단 기준 — 페이지와 무관)
+  const eligibleCount = useMemo(() => {
+    if (!selectedCourse) return 0
+    const w = {
+      midterm_weight: selectedCourse.midterm_weight,
+      final_weight: selectedCourse.final_weight,
+      attendance_weight: selectedCourse.attendance_weight,
+    }
+    return rows.filter((r) => r.student?.student_number !== '0001' && calcFinalScore(r, w) != null).length
+  }, [rows, selectedCourse])
   const grades = useMemo<Record<string, 'A' | 'B' | 'C'>>(() => {
     if (!selectedCourse) return {}
     const w = {
@@ -267,6 +289,14 @@ export default function AdminPage() {
                       className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
                     />
                   </div>
+                  <button
+                    onClick={() => setSortBy((s) => (s === 'final' ? 'number' : 'final'))}
+                    className="flex items-center justify-center gap-1.5 px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium whitespace-nowrap"
+                    title="정렬 전환 (학번 ↔ 최종점수)"
+                  >
+                    <ArrowUpDown size={16} />
+                    {sortBy === 'final' ? '최종점수 ↓' : '학번 ↑'}
+                  </button>
                   <button
                     onClick={handleAdd}
                     disabled={!courseId}
@@ -479,7 +509,7 @@ function WeightSettings({ course, eligibleCount, onSaved }: { course: Course; el
         <div className="flex flex-wrap items-end gap-3 border-t border-gray-100 pt-3">
           <div className="flex items-center gap-2 mr-1">
             <h2 className="text-sm font-semibold text-gray-800">상대평가 등급비율</h2>
-            <span className="text-xs text-gray-400">0001 제외 {eligibleCount}명</span>
+            <span className="text-xs text-gray-400">0001·미산정 제외 {eligibleCount}명</span>
           </div>
           <GradeField label="A" value={ga} onChange={setGa} hint={`${aN}명`} />
           <GradeField label="B" value={gb} onChange={setGb} hint={`${bN}명`} />
