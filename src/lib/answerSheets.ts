@@ -104,3 +104,15 @@ export async function deleteAnswerSheetsForStudent(studentId: string): Promise<v
   const { error } = await supabase.storage.from(BUCKET).remove(sheets.map((s) => s.path))
   if (error) throw error
 }
+
+// 클립보드에서 이미지 한 장 읽기 (없으면 null). 화면 캡처(Win+Shift+S) 후 붙여넣기용.
+export async function readClipboardImage(): Promise<Blob | null> {
+  const clip = navigator.clipboard
+  if (!clip?.read) return null
+  const items = await clip.read()
+  for (const item of items) {
+    const type = item.types.find((t) => t.startsWith('image/'))
+    if (type) return await item.getType(type)
+  }
+  return null
+}

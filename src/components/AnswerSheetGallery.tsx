@@ -1,10 +1,17 @@
-import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { Trash2, Plus, Camera, Loader2 } from 'lucide-react'
+import {
+  useEffect,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type ClipboardEvent,
+} from 'react'
+import { Trash2, Plus, Camera, ClipboardPaste, Loader2 } from 'lucide-react'
 import {
   listAnswerSheets,
   signedUrl,
   uploadAnswerSheet,
   deleteAnswerSheet,
+  readClipboardImage,
 } from '../lib/answerSheets'
 import { SCORE_LABEL, type AnswerSheet, type ExamType } from '../lib/supabase'
 import CameraCapture from './CameraCapture'
@@ -77,8 +84,56 @@ export default function AnswerSheetGallery({
     }
   }
 
+  const pushBlob = async (blob: Blob) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await uploadAnswerSheet(studentId, examType, blob)
+      await load()
+    } catch (e: any) {
+      setError(e?.message ?? String(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // 클립보드 '붙여넣기' 버튼 (Clipboard API)
+  const onPasteClick = async () => {
+    try {
+      const blob = await readClipboardImage()
+      if (!blob) {
+        setError('클립보드에 이미지가 없습니다. (Win+Shift+S로 캡처한 뒤 다시 누르세요)')
+        return
+      }
+      await pushBlob(blob)
+    } catch (e: any) {
+      setError('붙여넣기 실패: ' + (e?.message ?? String(e)))
+    }
+  }
+
+  // 이 영역이 포커스된 상태에서 Ctrl+V
+  const onPasteEvent = (e: ClipboardEvent<HTMLDivElement>) => {
+    const items = e.clipboardData?.items
+    if (!items) return
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i]
+      if (it.type.startsWith('image/')) {
+        const f = it.getAsFile()
+        if (f) {
+          e.preventDefault()
+          void pushBlob(f)
+          return
+        }
+      }
+    }
+  }
+
   return (
-    <div>
+    <div
+      className="outline-none"
+      tabIndex={readOnly ? undefined : 0}
+      onPaste={readOnly ? undefined : onPasteEvent}
+    >
       <div className="flex items-center justify-between mb-2">
         <span className="text-sm font-medium text-gray-700">
           {SCORE_LABEL[examType]} 답안지
@@ -108,6 +163,16 @@ export default function AnswerSheetGallery({
                 className="hidden"
               />
             </label>
+            <span className="text-gray-300">|</span>
+            <button
+              type="button"
+              onClick={onPasteClick}
+              disabled={busy}
+              className="inline-flex items-center gap-1 text-sm text-indigo-600 hover:text-indigo-700 disabled:opacity-50"
+            >
+              <ClipboardPaste size={16} />
+              붙여넣기
+            </button>
           </div>
         )}
       </div>
