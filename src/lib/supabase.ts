@@ -80,7 +80,8 @@ export function calcFinalScore(
 }
 
 // 상대평가 등급: 학번 0001(가상인물) 및 최종점수 미산정(NULL) 학생은 제외.
-// (최종점수가 계산된 학생만 대상) 최종점수 내림차순 순위로 A=상위 a%, B=다음 b%, 나머지=C.
+// 최종점수(중간·기말·출석 가중합) 내림차순으로 상위 a%=A, 다음 b%=B, 나머지=C.
+// 동점 처리: 경계에 걸친 동점자는 '올림'으로 상위 등급에 포함(같은 점수 → 같은 등급).
 export function assignRelativeGrades(
   items: { id: string; studentNumber: string; finalScore: number | null }[],
   ratios: { a: number; b: number },
@@ -88,12 +89,19 @@ export function assignRelativeGrades(
   const eligible = items.filter((it) => it.studentNumber !== '0001' && it.finalScore != null)
   const sorted = [...eligible].sort((x, y) => (y.finalScore as number) - (x.finalScore as number))
   const n = sorted.length
-  const aCut = Math.round((n * ratios.a) / 100)
-  const bCut = aCut + Math.round((n * ratios.b) / 100)
   const out: Record<string, 'A' | 'B' | 'C'> = {}
-  sorted.forEach((it, i) => {
-    out[it.id] = i < aCut ? 'A' : i < bCut ? 'B' : 'C'
-  })
+  if (n === 0) return out
+  const aTarget = Math.round((n * ratios.a) / 100)
+  const bTarget = aTarget + Math.round((n * ratios.b) / 100)
+  // 경계 컷 점수: 이 점수 이상이면 상위 등급(동점 올림)
+  const aThreshold = aTarget > 0 ? (sorted[Math.min(aTarget, n) - 1].finalScore as number) : Infinity
+  const bThreshold = bTarget > 0 ? (sorted[Math.min(bTarget, n) - 1].finalScore as number) : Infinity
+  for (const it of sorted) {
+    const s = it.finalScore as number
+    if (s >= aThreshold) out[it.id] = 'A'
+    else if (s >= bThreshold) out[it.id] = 'B'
+    else out[it.id] = 'C'
+  }
   return out
 }
 
