@@ -27,7 +27,8 @@ export async function signedUrl(path: string): Promise<string> {
   return data.signedUrl
 }
 
-// 업로드 전 클라이언트 축소 (최대 변 1600px, JPEG 0.85). jpg/png/webp만 디코드 가능.
+// 업로드 전 처리: 해상도는 최대한 유지(상한 2560px)하고, 목표 용량(~500KB)까지
+// JPEG 품질을 단계적으로 낮춰 압축. jpg/png/webp만 디코드 가능.
 export async function resizeImage(file: Blob): Promise<Blob> {
   const dataUrl = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
@@ -42,7 +43,8 @@ export async function resizeImage(file: Blob): Promise<Blob> {
       reject(new Error('이미지를 읽을 수 없습니다 (지원 형식: jpg/png/webp)'))
     i.src = dataUrl
   })
-  const MAX = 1600
+  // 해상도 유지: 비정상적으로 큰 사진만 상한(2560px) 적용, 그 외는 원본 크기 유지
+  const MAX = 2560
   let { width, height } = img
   if (width > MAX || height > MAX) {
     const scale = Math.min(MAX / width, MAX / height)
@@ -55,13 +57,25 @@ export async function resizeImage(file: Blob): Promise<Blob> {
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('canvas 컨텍스트를 만들 수 없습니다')
   ctx.drawImage(img, 0, 0, width, height)
-  return await new Promise<Blob>((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => (blob ? resolve(blob) : reject(new Error('이미지 변환 실패'))),
-      'image/jpeg',
-      0.85,
+
+  const toJpeg = (q: number) =>
+    new Promise<Blob>((resolve, reject) =>
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error('이미지 변환 실패'))),
+        'image/jpeg',
+        q,
+      ),
     )
-  })
+  // 최대한 압축: 목표 용량(~500KB) 이하가 될 때까지 품질을 단계적으로 낮춤
+  // (텍스트 가독성 위해 품질 하한 0.5)
+  const TARGET = 500 * 1024
+  let q = 0.82
+  let blob = await toJpeg(q)
+  while (blob.size > TARGET && q > 0.5) {
+    q = Math.round((q - 0.08) * 100) / 100
+    blob = await toJpeg(q)
+  }
+  return blob
 }
 
 // 업로드: 축소 → 객체 저장 → answer_sheets 행 insert → 행 반환 (교수만 RLS 통과)
