@@ -27,6 +27,10 @@ export type StudyMember = {
 
 const BUCKET = 'flashcard-images'
 
+// 학습 외부 링크 — NotebookLM(공공조달관리사 노트북). 질의응답은 NotebookLM에서 수행.
+export const NOTEBOOKLM_URL =
+  'https://notebooklm.google.com/notebook/625f3da7-5752-49fa-96fd-7b85553fa641'
+
 // ---------- 학생 접근(승인) ----------
 export async function getMyStudyStatus(): Promise<StudyStatus> {
   const { data: { user } } = await supabase.auth.getUser()

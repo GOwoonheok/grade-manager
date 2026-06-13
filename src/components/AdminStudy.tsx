@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { BookOpen, Check, ChevronDown, ChevronLeft, ChevronUp, ClipboardCheck, Eye, Image as ImageIcon, Info, MessagesSquare, Pencil, Plus, Trash2, X as XIcon } from 'lucide-react'
+import { BookOpen, Check, ChevronDown, ChevronLeft, ChevronUp, ClipboardCheck, ExternalLink, Eye, Image as ImageIcon, Info, MessagesSquare, Pencil, Plus, Trash2, X as XIcon } from 'lucide-react'
 import {
   bulkCreateCards,
+  NOTEBOOKLM_URL,
   createCard,
   createDeck,
   createTopic,
@@ -76,6 +77,7 @@ export default function AdminStudy() {
         <StudyMenuTile icon={<Info size={26} />} title="공공조달관리사 소개" desc="자격 개요와 과목 안내" onClick={() => setView('intro')} />
         <StudyMenuTile icon={<BookOpen size={26} />} title="플래시카드 관리" desc="과목 · 토픽 · 카드 등록/수정" onClick={() => setView('flash')} />
         <StudyMenuTile icon={<MessagesSquare size={26} />} title="같이 공부하기 (Q&A)" desc="질문 확인 · 답변" onClick={() => setView('qna')} />
+        <StudyMenuTile icon={<ExternalLink size={26} />} title="NotebookLM 질문하기" desc="공공조달관리사 노트북 (새 탭)" onClick={() => { window.open(NOTEBOOKLM_URL, '_blank', 'noopener,noreferrer') }} />
         <StudyMenuTile icon={<ClipboardCheck size={26} />} title="학습 신청 승인" desc={pending > 0 ? `${pending}건 대기중` : '신청 내역 관리'} onClick={() => setView('approve')} />
       </div>
     )

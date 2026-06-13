@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
-import { BookOpen, ChevronLeft, ChevronRight, Info, MessagesSquare } from 'lucide-react'
+import { BookOpen, ChevronLeft, ChevronRight, ExternalLink, Info, MessagesSquare } from 'lucide-react'
 import {
   getMyStudyStatus,
   listCards,
   listDecks,
   listTopics,
   requestStudy,
+  NOTEBOOKLM_URL,
   type Card,
   type Deck,
   type StudyStatus,
@@ -27,6 +28,7 @@ export default function StudentStudy() {
         <StudyMenuTile icon={<Info size={26} />} title="공공조달관리사 소개" desc="자격 개요와 과목 안내" onClick={() => setView('intro')} />
         <StudyMenuTile icon={<BookOpen size={26} />} title="플래시카드 학습" desc="과목 · 토픽별 카드로 암기 학습" onClick={() => setView('flash')} />
         <StudyMenuTile icon={<MessagesSquare size={26} />} title="같이 공부하기 (Q&A)" desc="질문하고 함께 답하기" onClick={() => setView('qna')} />
+        <StudyMenuTile icon={<ExternalLink size={26} />} title="NotebookLM 질문하기" desc="공공조달관리사 노트북에서 AI 질의응답 (새 탭)" onClick={() => { window.open(NOTEBOOKLM_URL, '_blank', 'noopener,noreferrer') }} />
       </div>
     )
 
