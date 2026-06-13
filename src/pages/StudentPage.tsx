@@ -102,7 +102,7 @@ function CourseBlock({ en, studentId }: { en: MyEnrollment; studentId: string })
     })
   }, [en, c])
 
-  const ratioText = c ? `${c.midterm_weight}·${c.final_weight}·${c.attendance_weight}` : ''
+  const published = c?.scores_published ?? false
 
   return (
     <section className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
@@ -119,35 +119,32 @@ function CourseBlock({ en, studentId }: { en: MyEnrollment; studentId: string })
         <ScoreCard label="출석" value={en.attendance} color="gray" icon={<CalendarCheck size={18} />} />
       </div>
 
-      {(c?.scores_published ?? false) ? (
-        <>
-          <div className="grid grid-cols-1 gap-3">
-            <ScoreCard
-              label="최종"
-              value={finalScore}
-              color="indigo"
-              icon={<Sparkles size={18} />}
-              sub={c ? `비율 ${ratioText}` : ''}
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <ScoreCard
-              label="반 평균 (최종)"
-              value={stats?.avg_score ?? null}
-              color="gray"
-              icon={<Users size={18} />}
-              sub={stats?.total_count ? `${stats.total_count}명 기준` : ''}
-            />
-            <ScoreCard
-              label="반 최고점 (최종)"
-              value={stats?.max_score ?? null}
-              color="amber"
-              icon={<Trophy size={18} />}
-            />
-          </div>
-        </>
-      ) : (
-        <p className="text-sm text-gray-400 italic">성적 미공개 (교수 공개 전)</p>
+      {/* 최종: 항상 환산식 안내, 값은 공개 전이면 '공개전' */}
+      <div className="grid grid-cols-1 gap-3">
+        <ScoreCard
+          label="최종"
+          value={published ? finalScore : '공개전'}
+          color="indigo"
+          icon={<Sparkles size={18} />}
+          sub={c ? `중간(${c.midterm_weight}%) + 기말(${c.final_weight}%) + 출석(${c.attendance_weight}%)` : ''}
+        />
+      </div>
+      {published && (
+        <div className="grid grid-cols-2 gap-3">
+          <ScoreCard
+            label="반 평균 (최종)"
+            value={stats?.avg_score ?? null}
+            color="gray"
+            icon={<Users size={18} />}
+            sub={stats?.total_count ? `${stats.total_count}명 기준` : ''}
+          />
+          <ScoreCard
+            label="반 최고점 (최종)"
+            value={stats?.max_score ?? null}
+            color="amber"
+            icon={<Trophy size={18} />}
+          />
+        </div>
       )}
 
       <div className="space-y-3 pt-1 border-t">
@@ -170,7 +167,7 @@ function ScoreCard({
   sub,
 }: {
   label: string
-  value: number | null
+  value: number | string | null
   color: 'indigo' | 'gray' | 'amber'
   icon: React.ReactNode
   sub?: string
@@ -188,8 +185,8 @@ function ScoreCard({
         <div className={`rounded-lg p-1 ${colorMap[color]}`}>{icon}</div>
       </div>
       <p className={`text-2xl font-bold tabular-nums ${valueColor}`}>
-        {value === null ? '—' : value}
-        {value !== null && <span className="text-sm text-gray-400 ml-1">점</span>}
+        {value === null ? '—' : typeof value === 'number' ? value : <span className="text-lg">{value}</span>}
+        {typeof value === 'number' && <span className="text-sm text-gray-400 ml-1">점</span>}
       </p>
       {sub && <p className="text-xs text-gray-400 mt-1">{sub}</p>}
     </div>
