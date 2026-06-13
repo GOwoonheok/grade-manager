@@ -1,9 +1,10 @@
 import { supabase } from './supabase'
 
 export type Deck = { id: string; name: string; sort_order: number; created_at: string }
+export type Topic = { id: string; deck_id: string; name: string; sort_order: number; created_at: string }
 export type Card = {
   id: string
-  deck_id: string
+  topic_id: string
   front: string
   back: string
   front_image: string | null
@@ -54,11 +55,22 @@ export async function listDecks(): Promise<Deck[]> {
   return (data as Deck[]) ?? []
 }
 
-export async function listCards(deckId: string): Promise<Card[]> {
+export async function listTopics(deckId: string): Promise<Topic[]> {
+  const { data, error } = await supabase
+    .from('topics')
+    .select('*')
+    .eq('deck_id', deckId)
+    .order('sort_order', { ascending: true })
+    .order('name', { ascending: true })
+  if (error) throw error
+  return (data as Topic[]) ?? []
+}
+
+export async function listCards(topicId: string): Promise<Card[]> {
   const { data, error } = await supabase
     .from('cards')
     .select('*')
-    .eq('deck_id', deckId)
+    .eq('topic_id', topicId)
     .order('sort_order', { ascending: true })
     .order('created_at', { ascending: true })
   if (error) throw error
@@ -97,6 +109,15 @@ export async function deleteDeck(id: string): Promise<void> {
   const { error } = await supabase.from('decks').delete().eq('id', id)
   if (error) throw error
 }
+export async function createTopic(deckId: string, name: string): Promise<Topic> {
+  const { data, error } = await supabase.from('topics').insert({ deck_id: deckId, name }).select('*').single()
+  if (error) throw error
+  return data as Topic
+}
+export async function deleteTopic(id: string): Promise<void> {
+  const { error } = await supabase.from('topics').delete().eq('id', id)
+  if (error) throw error
+}
 export async function uploadCardImage(file: Blob): Promise<string> {
   const path = `cards/${crypto.randomUUID()}.jpg`
   const { error } = await supabase.storage.from(BUCKET).upload(path, file, {
@@ -107,12 +128,12 @@ export async function uploadCardImage(file: Blob): Promise<string> {
   return path
 }
 export async function createCard(
-  deckId: string,
+  topicId: string,
   c: { front: string; back: string; front_image: string | null; back_image: string | null },
 ): Promise<Card> {
   const { data, error } = await supabase
     .from('cards')
-    .insert({ deck_id: deckId, ...c })
+    .insert({ topic_id: topicId, ...c })
     .select('*')
     .single()
   if (error) throw error

@@ -3,16 +3,20 @@ import { Check, Image as ImageIcon, Plus, Trash2, X as XIcon } from 'lucide-reac
 import {
   createCard,
   createDeck,
+  createTopic,
   deleteCard,
   deleteDeck,
+  deleteTopic,
   listCards,
   listDecks,
   listMembers,
+  listTopics,
   setMemberStatus,
   uploadCardImage,
   type Card,
   type Deck,
   type StudyMember,
+  type Topic,
 } from '../lib/flashcards'
 import { resizeImage } from '../lib/answerSheets'
 
@@ -26,71 +30,73 @@ const STATUS_CLS: Record<string, string> = {
 export default function AdminStudy() {
   const [decks, setDecks] = useState<Deck[]>([])
   const [deck, setDeck] = useState<Deck | null>(null)
+  const [topics, setTopics] = useState<Topic[]>([])
+  const [topic, setTopic] = useState<Topic | null>(null)
   const [cards, setCards] = useState<Card[]>([])
   const [members, setMembers] = useState<StudyMember[]>([])
   const [newDeck, setNewDeck] = useState('')
+  const [newTopic, setNewTopic] = useState('')
   const [err, setErr] = useState<string | null>(null)
 
   const loadDecks = async () => setDecks(await listDecks())
-  const loadCards = async (d: Deck) => { setDeck(d); setCards(await listCards(d.id)) }
-  const reloadCards = async () => { if (deck) setCards(await listCards(deck.id)) }
   const loadMembers = async () => setMembers(await listMembers())
-
   useEffect(() => {
     loadDecks().catch((e) => setErr(e.message))
     loadMembers().catch(() => {})
   }, [])
 
-  const addDeck = async () => {
-    if (!newDeck.trim()) return
-    try { await createDeck(newDeck.trim()); setNewDeck(''); await loadDecks() } catch (e: any) { setErr(e.message) }
-  }
-  const removeDeck = async (id: string) => {
-    if (!window.confirm('이 과목과 카드 전체를 삭제할까요?')) return
-    await deleteDeck(id)
-    if (deck?.id === id) setDeck(null)
-    await loadDecks()
-  }
-  const decide = async (m: StudyMember, s: 'approved' | 'rejected') => {
-    await setMemberStatus(m.id, s)
-    await loadMembers()
-  }
+  const openDeck = async (d: Deck) => { setDeck(d); setTopic(null); setCards([]); setTopics(await listTopics(d.id)) }
+  const openTopic = async (t: Topic) => { setTopic(t); setCards(await listCards(t.id)) }
+  const reloadTopics = async () => { if (deck) setTopics(await listTopics(deck.id)) }
+  const reloadCards = async () => { if (topic) setCards(await listCards(topic.id)) }
+
+  const addDeck = async () => { if (!newDeck.trim()) return; try { await createDeck(newDeck.trim()); setNewDeck(''); await loadDecks() } catch (e: any) { setErr(e.message) } }
+  const removeDeck = async (id: string) => { if (!window.confirm('과목과 하위 토픽·카드를 모두 삭제할까요?')) return; await deleteDeck(id); if (deck?.id === id) { setDeck(null); setTopic(null) } await loadDecks() }
+  const addTopic = async () => { if (!newTopic.trim() || !deck) return; try { await createTopic(deck.id, newTopic.trim()); setNewTopic(''); await reloadTopics() } catch (e: any) { setErr(e.message) } }
+  const removeTopic = async (id: string) => { if (!window.confirm('토픽과 카드를 삭제할까요?')) return; await deleteTopic(id); if (topic?.id === id) setTopic(null); await reloadTopics() }
+  const decide = async (m: StudyMember, s: 'approved' | 'rejected') => { await setMemberStatus(m.id, s); await loadMembers() }
 
   return (
     <div className="space-y-6">
       {err && <p className="text-sm text-red-600">{err}</p>}
 
       <section className="bg-white border border-gray-200 rounded-2xl p-4">
-        <h2 className="text-sm font-semibold text-gray-800 mb-3">과목 · 카드 관리</h2>
-        <div className="flex gap-2 mb-3">
-          <input
-            value={newDeck}
-            onChange={(e) => setNewDeck(e.target.value)}
-            placeholder="새 과목명 (예: 조달관리 일반)"
-            className="flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500"
-          />
-          <button onClick={addDeck} className="px-4 py-2 border border-indigo-600 text-indigo-700 rounded-lg font-medium flex items-center gap-1">
-            <Plus size={16} />과목 추가
-          </button>
+        <h2 className="text-sm font-semibold text-gray-800 mb-3">과목 · 토픽 · 카드 관리</h2>
+
+        <div className="flex gap-2 mb-2">
+          <input value={newDeck} onChange={(e) => setNewDeck(e.target.value)} placeholder="새 과목명 (예: 조달법규)" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500" />
+          <button onClick={addDeck} className="px-3 py-2 border border-indigo-600 text-indigo-700 rounded-lg font-medium flex items-center gap-1"><Plus size={16} />과목</button>
         </div>
-        <div className="flex flex-wrap gap-2 mb-4">
+        <div className="flex flex-wrap gap-2 mb-3">
           {decks.length === 0 && <span className="text-sm text-gray-400">과목을 추가하세요.</span>}
           {decks.map((d) => (
-            <span
-              key={d.id}
-              onClick={() => loadCards(d)}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm cursor-pointer ${
-                deck?.id === d.id ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-300 text-gray-700'
-              }`}
-            >
+            <span key={d.id} onClick={() => openDeck(d)} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm cursor-pointer ${deck?.id === d.id ? 'border-indigo-500 bg-indigo-50 text-indigo-700' : 'border-gray-300 text-gray-700'}`}>
               {d.name}
-              <button onClick={(e) => { e.stopPropagation(); removeDeck(d.id) }} className="text-gray-400 hover:text-red-600">
-                <Trash2 size={13} />
-              </button>
+              <button onClick={(e) => { e.stopPropagation(); removeDeck(d.id) }} className="text-gray-400 hover:text-red-600"><Trash2 size={13} /></button>
             </span>
           ))}
         </div>
-        {deck && <DeckCards deck={deck} cards={cards} reload={reloadCards} />}
+
+        {deck && (
+          <div className="border-t border-gray-100 pt-3">
+            <p className="text-xs font-semibold text-gray-600 mb-2">{deck.name} · 토픽</p>
+            <div className="flex gap-2 mb-2">
+              <input value={newTopic} onChange={(e) => setNewTopic(e.target.value)} placeholder="새 토픽명 (예: 1단원)" className="flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm" />
+              <button onClick={addTopic} className="px-3 py-2 border border-indigo-400 text-indigo-700 rounded-lg text-sm font-medium flex items-center gap-1"><Plus size={14} />토픽</button>
+            </div>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {topics.length === 0 && <span className="text-sm text-gray-400">토픽을 추가하세요.</span>}
+              {topics.map((t) => (
+                <span key={t.id} onClick={() => openTopic(t)} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm cursor-pointer ${topic?.id === t.id ? 'border-emerald-500 bg-emerald-50 text-emerald-700' : 'border-gray-300 text-gray-700'}`}>
+                  {t.name}
+                  <button onClick={(e) => { e.stopPropagation(); removeTopic(t.id) }} className="text-gray-400 hover:text-red-600"><Trash2 size={13} /></button>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {topic && <TopicCards topic={topic} cards={cards} reload={reloadCards} />}
       </section>
 
       <section className="bg-white border border-gray-200 rounded-2xl p-4">
@@ -107,12 +113,8 @@ export default function AdminStudy() {
                 </span>
                 {m.status === 'pending' && (
                   <span className="flex gap-1">
-                    <button onClick={() => decide(m, 'approved')} className="px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1">
-                      <Check size={14} />승인
-                    </button>
-                    <button onClick={() => decide(m, 'rejected')} className="px-2 py-1 rounded bg-red-50 text-red-700 border border-red-200 flex items-center gap-1">
-                      <XIcon size={14} />거부
-                    </button>
+                    <button onClick={() => decide(m, 'approved')} className="px-2 py-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-200 flex items-center gap-1"><Check size={14} />승인</button>
+                    <button onClick={() => decide(m, 'rejected')} className="px-2 py-1 rounded bg-red-50 text-red-700 border border-red-200 flex items-center gap-1"><XIcon size={14} />거부</button>
                   </span>
                 )}
               </div>
@@ -124,7 +126,7 @@ export default function AdminStudy() {
   )
 }
 
-function DeckCards({ deck, cards, reload }: { deck: Deck; cards: Card[]; reload: () => void }) {
+function TopicCards({ topic, cards, reload }: { topic: Topic; cards: Card[]; reload: () => void }) {
   const [front, setFront] = useState('')
   const [back, setBack] = useState('')
   const [frontImg, setFrontImg] = useState<string | null>(null)
@@ -133,39 +135,23 @@ function DeckCards({ deck, cards, reload }: { deck: Deck; cards: Card[]; reload:
   const [err, setErr] = useState<string | null>(null)
 
   const pick = async (e: ChangeEvent<HTMLInputElement>, set: (p: string | null) => void) => {
-    const f = e.target.files?.[0]
-    if (!f) return
-    setBusy(true)
-    setErr(null)
-    try {
-      const blob = await resizeImage(f)
-      set(await uploadCardImage(blob))
-    } catch (er: any) {
-      setErr('이미지 업로드 실패: ' + (er?.message ?? er))
-    } finally {
-      setBusy(false)
-      e.target.value = ''
-    }
+    const f = e.target.files?.[0]; if (!f) return
+    setBusy(true); setErr(null)
+    try { set(await uploadCardImage(await resizeImage(f))) } catch (er: any) { setErr('이미지 업로드 실패: ' + (er?.message ?? er)) } finally { setBusy(false); e.target.value = '' }
   }
   const add = async () => {
     if (!front.trim() && !frontImg) { setErr('앞면(문제)을 입력하세요.'); return }
-    setBusy(true)
-    setErr(null)
+    setBusy(true); setErr(null)
     try {
-      await createCard(deck.id, { front: front.trim(), back: back.trim(), front_image: frontImg, back_image: backImg })
-      setFront(''); setBack(''); setFrontImg(null); setBackImg(null)
-      reload()
-    } catch (er: any) {
-      setErr('카드 추가 실패: ' + (er?.message ?? er))
-    } finally {
-      setBusy(false)
-    }
+      await createCard(topic.id, { front: front.trim(), back: back.trim(), front_image: frontImg, back_image: backImg })
+      setFront(''); setBack(''); setFrontImg(null); setBackImg(null); reload()
+    } catch (er: any) { setErr('카드 추가 실패: ' + (er?.message ?? er)) } finally { setBusy(false) }
   }
 
   return (
     <div className="border-t border-gray-100 pt-3">
-      <p className="text-xs font-semibold text-gray-600 mb-2">{deck.name} — 카드 {cards.length}장</p>
-      <div className="space-y-2 mb-3 max-h-60 overflow-y-auto">
+      <p className="text-xs font-semibold text-gray-600 mb-2">{topic.name} · 카드 {cards.length}장</p>
+      <div className="space-y-2 mb-3 max-h-56 overflow-y-auto">
         {cards.length === 0 && <p className="text-sm text-gray-400">카드가 없습니다.</p>}
         {cards.map((c) => (
           <div key={c.id} className="flex items-start justify-between gap-2 text-sm border border-gray-200 rounded-lg p-2">
@@ -173,9 +159,7 @@ function DeckCards({ deck, cards, reload }: { deck: Deck; cards: Card[]; reload:
               <p className="font-medium text-gray-900 truncate">{c.front || '(이미지)'}</p>
               <p className="text-gray-500 truncate">{c.back || (c.back_image ? '(이미지)' : '')}</p>
             </div>
-            <button onClick={async () => { await deleteCard(c.id); reload() }} className="text-gray-400 hover:text-red-600 shrink-0">
-              <Trash2 size={15} />
-            </button>
+            <button onClick={async () => { await deleteCard(c.id); reload() }} className="text-gray-400 hover:text-red-600 shrink-0"><Trash2 size={15} /></button>
           </div>
         ))}
       </div>
@@ -187,9 +171,7 @@ function DeckCards({ deck, cards, reload }: { deck: Deck; cards: Card[]; reload:
           <ImgPick label={backImg ? '뒤면 이미지 ✓' : '뒤면 이미지'} onChange={(e) => pick(e, setBackImg)} />
         </div>
         {err && <p className="text-xs text-red-600">{err}</p>}
-        <button onClick={add} disabled={busy} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-lg text-sm font-medium flex items-center gap-1">
-          <Plus size={16} />{busy ? '처리 중...' : '카드 추가'}
-        </button>
+        <button onClick={add} disabled={busy} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-lg text-sm font-medium flex items-center gap-1"><Plus size={16} />{busy ? '처리 중...' : '카드 추가'}</button>
       </div>
     </div>
   )
