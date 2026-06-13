@@ -6,6 +6,7 @@ import {
   studentNumberToEmail,
   type Student,
 } from '../lib/supabase'
+import AnswerSheetGallery from './AnswerSheetGallery'
 
 type Props = {
   open: boolean
@@ -243,6 +244,13 @@ export default function StudentFormModal({
               />
             </Field>
           </div>
+
+          {isEdit && initial && (
+            <div className="space-y-4 pt-2 border-t">
+              <AnswerSheetGallery studentId={initial.id} examType="midterm" />
+              <AnswerSheetGallery studentId={initial.id} examType="final" />
+            </div>
+          )}
 
           {error && (
             <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
