@@ -13,6 +13,7 @@ import StudentList from '../components/StudentList'
 import StudentFormModal from '../components/StudentFormModal'
 import CourseFormModal from '../components/CourseFormModal'
 import ConfirmDialog from '../components/ConfirmDialog'
+import BrandHeader from '../components/BrandHeader'
 
 const courseLabel = (c: Course) => `${c.year}-${c.semester}학기 · ${c.subject_name}`
 
@@ -116,6 +117,7 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <BrandHeader />
       <header className="bg-white border-b">
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">

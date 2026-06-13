@@ -20,6 +20,7 @@ import {
   type ClassStats,
 } from '../lib/supabase'
 import AnswerSheetGallery from '../components/AnswerSheetGallery'
+import BrandHeader from '../components/BrandHeader'
 
 export default function StudentPage() {
   const { profile, signOut } = useAuth()
@@ -56,6 +57,7 @@ export default function StudentPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <BrandHeader />
       <header className="bg-white border-b">
         <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
