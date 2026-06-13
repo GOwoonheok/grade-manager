@@ -21,7 +21,7 @@ export default function LoginPage() {
   }
 
   if (session && profile) {
-    return <Navigate to={profile.role === 'professor' ? '/admin' : '/me'} replace />
+    return <Navigate to="/home" replace />
   }
 
   const handleSubmit = async (e: FormEvent) => {
@@ -58,14 +58,8 @@ export default function LoginPage() {
       return
     }
 
-    const { data: prof } = await supabase
-      .from('students')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
     setSubmitting(false)
-    navigate(prof?.role === 'professor' ? '/admin' : '/me', { replace: true })
+    navigate('/home', { replace: true })
   }
 
   return (
