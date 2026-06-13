@@ -87,3 +87,26 @@ export type AnswerSheet = {
   path: string
   created_at: string
 }
+
+// 다과목(P2): 과목 개설 + 수강등록
+export type Course = {
+  id: string
+  owner_id: string
+  year: number
+  semester: number
+  subject_name: string
+  midterm_weight: number
+  final_weight: number
+  attendance_weight: number
+  created_at: string
+}
+
+export type Enrollment = {
+  id: string
+  course_id: string
+  student_id: string
+  midterm: number | null
+  final: number | null
+  attendance: number | null
+  created_at: string
+}
