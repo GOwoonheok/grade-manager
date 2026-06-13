@@ -89,6 +89,23 @@ export function imageUrl(path: string): string {
   return supabase.storage.from(BUCKET).getPublicUrl(path).data.publicUrl
 }
 
+// 카드 조회/검색 (B-1) — 키워드로 term/definition/content/keywords 검색. RLS가 접근범위 통제.
+export type CardHit = Card & {
+  topic: { name: string; deck: { name: string } | null } | null
+}
+export async function searchCards(query: string): Promise<CardHit[]> {
+  const s = query.trim().replace(/[,.()%*]/g, ' ').trim()
+  if (s.length < 1) return []
+  const like = `%${s}%`
+  const { data, error } = await supabase
+    .from('cards')
+    .select('*, topic:topics(name, deck:decks(name))')
+    .or(`term.ilike.${like},definition.ilike.${like},content.ilike.${like},keywords.ilike.${like}`)
+    .limit(50)
+  if (error) throw error
+  return (data as CardHit[]) ?? []
+}
+
 // ---------- 진도 ----------
 export async function setCardMark(cardId: string, status: 'known' | 'unknown'): Promise<void> {
   const { data: { user } } = await supabase.auth.getUser()
