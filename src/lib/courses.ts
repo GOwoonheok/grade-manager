@@ -62,7 +62,19 @@ export async function updateCourseGrades(
   if (error) throw error
 }
 
-// 과목 수강생 목록(점수 포함). 학번순.
+// 전화번호 복호화 RPC (담당 교수/본인만). 015 미적용 시 호출 실패 → 호출부에서 평문 폴백.
+export async function getStudentPhones(ids: string[]): Promise<Record<string, string>> {
+  if (ids.length === 0) return {}
+  const { data, error } = await supabase.rpc('get_student_phones', { p_ids: ids })
+  if (error) throw error
+  const m: Record<string, string> = {}
+  for (const r of (data as { id: string; phone: string | null }[]) ?? []) {
+    if (r.phone) m[r.id] = r.phone
+  }
+  return m
+}
+
+// 과목 수강생 목록(점수 포함). 학번순. 전화번호는 복호화 값으로 표시.
 export async function listEnrollments(courseId: string): Promise<EnrollmentRow[]> {
   const { data, error } = await supabase
     .from('enrollments')
@@ -70,6 +82,13 @@ export async function listEnrollments(courseId: string): Promise<EnrollmentRow[]
     .eq('course_id', courseId)
   if (error) throw error
   const rows = (data as EnrollmentRow[]) ?? []
+  const ids = rows.map((r) => r.student?.id).filter((x): x is string => !!x)
+  try {
+    const phones = await getStudentPhones(ids)
+    for (const r of rows) if (r.student && phones[r.student.id] != null) r.student.phone = phones[r.student.id]
+  } catch {
+    /* 015 적용 전: 평문(조인 값) 그대로 사용 */
+  }
   return rows.sort((a, b) =>
     (a.student?.student_number ?? '').localeCompare(b.student?.student_number ?? ''),
   )
