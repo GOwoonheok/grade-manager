@@ -296,7 +296,10 @@ export default function AdminPage() {
         open={formOpen}
         courseId={courseId}
         initial={editing}
-        onClose={() => setFormOpen(false)}
+        onClose={() => {
+          setFormOpen(false)
+          if (courseId) loadRoster(courseId) // 이미지 업로드 반영 위해 닫을 때 명단 새로고침
+        }}
         onSaved={() => courseId && loadRoster(courseId)}
       />
 
