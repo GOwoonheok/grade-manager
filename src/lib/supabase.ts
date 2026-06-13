@@ -77,3 +77,13 @@ export function calcFinalScore(
     s.attendance * w.attendance_weight
   return Math.round((total / 100) * 100) / 100 // 소수 둘째자리
 }
+
+export type ExamType = 'midterm' | 'final'
+
+export type AnswerSheet = {
+  id: string
+  student_id: string
+  exam_type: ExamType
+  path: string
+  created_at: string
+}
