@@ -27,6 +27,14 @@ export async function signedUrl(path: string): Promise<string> {
   return data.signedUrl
 }
 
+// 여러 경로의 signed URL을 한 번에 발급 (N회 호출 → 1회 배치)
+export async function signedUrls(paths: string[]): Promise<string[]> {
+  if (paths.length === 0) return []
+  const { data, error } = await supabase.storage.from(BUCKET).createSignedUrls(paths, 3600)
+  if (error || !data) throw error ?? new Error('signed URL 생성 실패')
+  return data.map((d) => d.signedUrl ?? '')
+}
+
 // 업로드 전 처리: 해상도는 최대한 유지(상한 2560px)하고, 목표 용량(~500KB)까지
 // JPEG 품질을 단계적으로 낮춰 압축. jpg/png/webp만 디코드 가능.
 export async function resizeImage(file: Blob): Promise<Blob> {

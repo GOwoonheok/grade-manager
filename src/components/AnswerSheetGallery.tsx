@@ -8,7 +8,7 @@ import {
 import { Trash2, Plus, Camera, ClipboardPaste, Loader2 } from 'lucide-react'
 import {
   listAnswerSheets,
-  signedUrl,
+  signedUrls,
   uploadAnswerSheet,
   deleteAnswerSheet,
   readClipboardImage,
@@ -39,10 +39,8 @@ export default function AnswerSheetGallery({
     setError(null)
     try {
       const sheets = await listAnswerSheets(studentId, examType)
-      const withUrls = await Promise.all(
-        sheets.map(async (s) => ({ sheet: s, url: await signedUrl(s.path) })),
-      )
-      setThumbs(withUrls)
+      const urls = await signedUrls(sheets.map((s) => s.path)) // 1회 배치
+      setThumbs(sheets.map((s, i) => ({ sheet: s, url: urls[i] })))
     } catch (e: any) {
       setError(e?.message ?? String(e))
     } finally {
@@ -195,6 +193,7 @@ export default function AnswerSheetGallery({
                 <img
                   src={t.url}
                   alt="답안지"
+                  loading="lazy"
                   className="w-24 h-24 object-cover rounded-lg border hover:opacity-90"
                 />
               </a>
@@ -203,6 +202,7 @@ export default function AnswerSheetGallery({
                 <img
                   src={t.url}
                   alt="답안지"
+                  loading="lazy"
                   className="w-20 h-20 object-cover rounded-lg border"
                 />
                 <button

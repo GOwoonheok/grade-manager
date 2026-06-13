@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx'
 import { SCORE_LABEL, type ScoreField, type Student } from './supabase'
 
 type TemplateStudent = Pick<Student, 'student_number' | 'name'>
@@ -15,10 +14,11 @@ export function buildScoreTemplateRows(
 }
 
 // 워크북 생성 후 브라우저 다운로드 트리거. 파일명 예: '기말_점수_양식.xlsx'
-export function downloadScoreTemplate(
+export async function downloadScoreTemplate(
   field: ScoreField,
   students: TemplateStudent[],
-): void {
+): Promise<void> {
+  const XLSX = await import('xlsx') // 동적 import: 초기 번들에서 분리
   const rows = buildScoreTemplateRows(field, students)
   const ws = XLSX.utils.aoa_to_sheet(rows)
   const wb = XLSX.utils.book_new()

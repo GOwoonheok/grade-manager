@@ -1,6 +1,5 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import { X, Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Download } from 'lucide-react'
-import * as XLSX from 'xlsx'
 import {
   supabase,
   supabaseSignup,
@@ -95,6 +94,7 @@ export default function ExcelUploadModal({ open, mode, onClose, onDone, students
     setFileName(file.name)
 
     try {
+      const XLSX = await import('xlsx') // 동적 import: 초기 번들에서 분리
       const buf = await file.arrayBuffer()
       const wb = XLSX.read(buf)
       const sheet = wb.Sheets[wb.SheetNames[0]]
