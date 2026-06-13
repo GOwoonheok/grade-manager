@@ -3,6 +3,7 @@ import {
   AlertCircle,
   CalendarCheck,
   CheckCircle2,
+  FileImage,
   GraduationCap,
   Key,
   LogOut,
@@ -18,6 +19,7 @@ import {
   type ClassSettings,
   type ClassStats,
 } from '../lib/supabase'
+import AnswerSheetGallery from '../components/AnswerSheetGallery'
 
 export default function StudentPage() {
   const { profile, signOut } = useAuth()
@@ -132,6 +134,18 @@ export default function StudentPage() {
             icon={<Trophy size={18} />}
           />
         </section>
+
+        {/* 답안지 */}
+        {profile && (
+          <section className="bg-white rounded-2xl shadow-sm p-6 space-y-4">
+            <div className="flex items-center gap-2">
+              <FileImage className="text-indigo-600" size={18} />
+              <h2 className="text-sm font-semibold text-gray-800">답안지</h2>
+            </div>
+            <AnswerSheetGallery studentId={profile.id} examType="midterm" readOnly />
+            <AnswerSheetGallery studentId={profile.id} examType="final" readOnly />
+          </section>
+        )}
 
         {/* 비밀번호 변경 */}
         <PasswordChange />
