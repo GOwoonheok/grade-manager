@@ -1,118 +1,117 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import {
-  Calculator,
-  LogOut,
-  Plus,
-  Search,
-  Upload,
-  Users,
-} from 'lucide-react'
+import { BookOpen, Calculator, LogOut, Plus, Search, Users } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
+import { type Course } from '../lib/supabase'
 import {
-  supabase,
-  type ClassSettings,
-  type ScoreField,
-  type Student,
-} from '../lib/supabase'
-import { deleteAnswerSheetsForStudent } from '../lib/answerSheets'
+  listMyCourses,
+  listEnrollments,
+  removeEnrollment,
+  updateCourseWeights,
+  type EnrollmentRow,
+} from '../lib/courses'
 import StudentList from '../components/StudentList'
 import StudentFormModal from '../components/StudentFormModal'
+import CourseFormModal from '../components/CourseFormModal'
 import ConfirmDialog from '../components/ConfirmDialog'
-import ExcelUploadModal, {
-  type ExcelMode,
-} from '../components/ExcelUploadModal'
+
+const courseLabel = (c: Course) => `${c.year}-${c.semester}학기 · ${c.subject_name}`
 
 export default function AdminPage() {
   const { profile, signOut } = useAuth()
-  const [students, setStudents] = useState<Student[]>([])
-  const [settings, setSettings] = useState<ClassSettings | null>(null)
+  const [courses, setCourses] = useState<Course[]>([])
+  const [courseId, setCourseId] = useState<string | null>(null)
+  const [rows, setRows] = useState<EnrollmentRow[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
 
   const [formOpen, setFormOpen] = useState(false)
-  const [editing, setEditing] = useState<Student | null>(null)
-
+  const [editing, setEditing] = useState<EnrollmentRow | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
-  const [deleting, setDeleting] = useState<Student | null>(null)
+  const [deleting, setDeleting] = useState<EnrollmentRow | null>(null)
   const [deleteLoading, setDeleteLoading] = useState(false)
+  const [courseModalOpen, setCourseModalOpen] = useState(false)
 
-  const [excelMode, setExcelMode] = useState<ExcelMode | null>(null)
+  const selectedCourse = useMemo(
+    () => courses.find((c) => c.id === courseId) ?? null,
+    [courses, courseId],
+  )
 
-  const loadStudents = async () => {
-    setLoading(true)
-    setError(null)
-    const { data, error: e } = await supabase
-      .from('students')
-      .select('*')
-      .eq('role', 'student')
-      .order('student_number', { ascending: true })
-    if (e) setError(e.message)
-    setStudents((data as Student[]) ?? [])
-    setLoading(false)
+  const loadCourses = async () => {
+    try {
+      const cs = await listMyCourses()
+      setCourses(cs)
+      setCourseId((cur) => (cur && cs.some((c) => c.id === cur) ? cur : cs[0]?.id ?? null))
+    } catch (e: any) {
+      setError(e?.message ?? String(e))
+    }
   }
 
-  const loadSettings = async () => {
-    const { data } = await supabase
-      .from('class_settings')
-      .select('*')
-      .eq('id', 1)
-      .single()
-    if (data) setSettings(data as ClassSettings)
+  const loadRoster = async (cid: string) => {
+    setLoading(true)
+    setError(null)
+    try {
+      setRows(await listEnrollments(cid))
+    } catch (e: any) {
+      setError(e?.message ?? String(e))
+      setRows([])
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
-    loadStudents()
-    loadSettings()
+    loadCourses()
   }, [])
+
+  useEffect(() => {
+    if (courseId) loadRoster(courseId)
+    else {
+      setRows([])
+      setLoading(false)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courseId])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return students
-    return students.filter(
-      (s) =>
-        s.name.toLowerCase().includes(q) ||
-        s.student_number.toLowerCase().includes(q) ||
-        s.department.toLowerCase().includes(q),
-    )
-  }, [students, search])
+    if (!q) return rows
+    return rows.filter((r) => {
+      const s = r.student
+      return (
+        (s?.name ?? '').toLowerCase().includes(q) ||
+        (s?.student_number ?? '').toLowerCase().includes(q) ||
+        (s?.department ?? '').toLowerCase().includes(q)
+      )
+    })
+  }, [rows, search])
 
   const handleAdd = () => {
     setEditing(null)
     setFormOpen(true)
   }
-
-  const handleEdit = (s: Student) => {
-    setEditing(s)
+  const handleEdit = (r: EnrollmentRow) => {
+    setEditing(r)
     setFormOpen(true)
   }
-
-  const handleDelete = (s: Student) => {
-    setDeleting(s)
+  const handleDelete = (r: EnrollmentRow) => {
+    setDeleting(r)
     setConfirmOpen(true)
   }
-
   const confirmDelete = async () => {
     if (!deleting) return
     setDeleteLoading(true)
     try {
-      await deleteAnswerSheetsForStudent(deleting.id)
-    } catch (err) {
-      // 답안지 객체 정리 실패는 치명적이지 않음 — 로그만 남기고 학생 삭제 진행
-      console.error('답안지 정리 실패:', err)
-    }
-    const { error: e } = await supabase
-      .from('students')
-      .delete()
-      .eq('id', deleting.id)
-    setDeleteLoading(false)
-    if (e) {
-      alert('삭제 실패: ' + e.message)
+      await removeEnrollment(deleting.id)
+    } catch (e: any) {
+      alert('삭제 실패: ' + (e?.message ?? e))
+      setDeleteLoading(false)
       return
     }
+    setDeleteLoading(false)
     setConfirmOpen(false)
     setDeleting(null)
-    await loadStudents()
+    if (courseId) loadRoster(courseId)
   }
 
   return (
@@ -121,9 +120,7 @@ export default function AdminPage() {
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Users className="text-indigo-600" size={22} />
-            <h1 className="text-lg font-semibold text-gray-800">
-              교수 대시보드
-            </h1>
+            <h1 className="text-lg font-semibold text-gray-800">교수 대시보드</h1>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-gray-600 hidden sm:inline">
@@ -141,85 +138,122 @@ export default function AdminPage() {
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-6 space-y-4">
-        {/* 가중치 설정 */}
-        <WeightSettings settings={settings} onSaved={loadSettings} />
+        {/* 과목 선택 바 */}
+        <section className="bg-white rounded-2xl shadow-sm p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-center gap-2 text-gray-700">
+              <BookOpen className="text-indigo-600" size={18} />
+              <span className="text-sm font-semibold">과목</span>
+            </div>
+            <select
+              value={courseId ?? ''}
+              onChange={(e) => setCourseId(e.target.value || null)}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+            >
+              {courses.length === 0 && <option value="">개설된 과목 없음</option>}
+              {courses.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {courseLabel(c)}
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => setCourseModalOpen(true)}
+              className="flex items-center justify-center gap-1.5 px-4 py-2 border border-indigo-600 text-indigo-700 hover:bg-indigo-50 rounded-lg font-medium"
+            >
+              <Plus size={18} />새 과목
+            </button>
+          </div>
+        </section>
 
-        {/* 학생 목록 카드 */}
-        <div className="bg-white rounded-2xl shadow-sm">
-          <div className="flex flex-col gap-3 p-4 border-b">
-            <div className="flex flex-col sm:flex-row gap-3">
-              <div className="relative flex-1">
-                <Search
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-                  size={16}
-                />
-                <input
-                  type="text"
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder="이름·학번·학과로 검색"
-                  className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-                />
+        {courses.length === 0 ? (
+          <div className="bg-white rounded-2xl shadow-sm p-12 text-center text-gray-500">
+            먼저 <span className="font-medium text-gray-700">새 과목</span>을 개설하세요.
+          </div>
+        ) : (
+          <>
+            {/* 가중치 (선택 과목) */}
+            {selectedCourse && (
+              <WeightSettings
+                course={selectedCourse}
+                onSaved={() => loadCourses()}
+              />
+            )}
+
+            {/* 학생 명단 카드 */}
+            <div className="bg-white rounded-2xl shadow-sm">
+              <div className="flex flex-col sm:flex-row gap-3 p-4 border-b">
+                <div className="relative flex-1">
+                  <Search
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    size={16}
+                  />
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder="이름·학번·학과로 검색"
+                    className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                  />
+                </div>
+                <button
+                  onClick={handleAdd}
+                  disabled={!courseId}
+                  className="flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-300 text-white rounded-lg font-medium"
+                >
+                  <Plus size={18} />
+                  학생 추가
+                </button>
               </div>
-              <button
-                onClick={handleAdd}
-                className="flex items-center justify-center gap-1.5 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium"
-              >
-                <Plus size={18} />
-                학생 추가
-              </button>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                onClick={() => setExcelMode({ kind: 'register' })}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-emerald-600 text-emerald-700 hover:bg-emerald-50 rounded-lg font-medium"
-              >
-                <Upload size={16} />
-                신규 일괄 등록
-              </button>
-              <ScoreUploadButton field="midterm" onClick={setExcelMode} />
-              <ScoreUploadButton field="final" onClick={setExcelMode} />
-              <ScoreUploadButton field="attendance" onClick={setExcelMode} />
-            </div>
-          </div>
 
-          {error && (
-            <div className="m-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
-              {error}
+              {error && (
+                <div className="m-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">
+                  {error}
+                </div>
+              )}
+
+              {loading ? (
+                <div className="text-center text-gray-500 py-12">불러오는 중...</div>
+              ) : (
+                <StudentList
+                  rows={filtered}
+                  course={selectedCourse}
+                  onEdit={handleEdit}
+                  onDelete={handleDelete}
+                />
+              )}
+
+              <div className="p-4 text-sm text-gray-500 border-t">
+                총 {filtered.length}명 {search && `(전체 ${rows.length}명 중)`}
+              </div>
             </div>
-          )}
-
-          {loading ? (
-            <div className="text-center text-gray-500 py-12">불러오는 중...</div>
-          ) : (
-            <StudentList
-              students={filtered}
-              settings={settings}
-              onEdit={handleEdit}
-              onDelete={handleDelete}
-            />
-          )}
-
-          <div className="p-4 text-sm text-gray-500 border-t">
-            총 {filtered.length}명{' '}
-            {search && `(전체 ${students.length}명 중)`}
-          </div>
-        </div>
+          </>
+        )}
       </main>
 
       <StudentFormModal
         open={formOpen}
+        courseId={courseId}
         initial={editing}
         onClose={() => setFormOpen(false)}
-        onSaved={loadStudents}
+        onSaved={() => courseId && loadRoster(courseId)}
+      />
+
+      <CourseFormModal
+        open={courseModalOpen}
+        onClose={() => setCourseModalOpen(false)}
+        onCreated={async (id) => {
+          await loadCourses()
+          setCourseId(id)
+        }}
       />
 
       <ConfirmDialog
         open={confirmOpen}
-        title="학생 삭제"
+        title="수강 삭제"
         message={
           deleting
-            ? `${deleting.name}(${deleting.student_number}) 학생을 삭제하시겠습니까? 되돌릴 수 없습니다.`
+            ? `${deleting.student?.name}(${deleting.student?.student_number}) 학생을 이 과목에서 삭제하시겠습니까?`
             : ''
         }
         confirmText="삭제"
@@ -227,66 +261,23 @@ export default function AdminPage() {
         onCancel={() => setConfirmOpen(false)}
         loading={deleteLoading}
       />
-
-      {excelMode && (
-        <ExcelUploadModal
-          open={!!excelMode}
-          mode={excelMode}
-          onClose={() => setExcelMode(null)}
-          onDone={loadStudents}
-          students={students}
-        />
-      )}
     </div>
   )
 }
 
-const SCORE_BUTTON_LABEL: Record<ScoreField, string> = {
-  midterm: '중간 점수 업로드',
-  final: '기말 점수 업로드',
-  attendance: '출석 점수 업로드',
-}
-
-function ScoreUploadButton({
-  field,
-  onClick,
-}: {
-  field: ScoreField
-  onClick: (m: ExcelMode) => void
-}) {
-  return (
-    <button
-      onClick={() => onClick({ kind: 'score', field })}
-      className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg font-medium"
-    >
-      <Upload size={16} />
-      {SCORE_BUTTON_LABEL[field]}
-    </button>
-  )
-}
-
-function WeightSettings({
-  settings,
-  onSaved,
-}: {
-  settings: ClassSettings | null
-  onSaved: () => void
-}) {
+function WeightSettings({ course, onSaved }: { course: Course; onSaved: () => void }) {
   const [m, setM] = useState('')
   const [f, setF] = useState('')
   const [a, setA] = useState('')
   const [saving, setSaving] = useState(false)
-  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(
-    null,
-  )
+  const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
   useEffect(() => {
-    if (settings) {
-      setM(settings.midterm_weight.toString())
-      setF(settings.final_weight.toString())
-      setA(settings.attendance_weight.toString())
-    }
-  }, [settings])
+    setM(course.midterm_weight.toString())
+    setF(course.final_weight.toString())
+    setA(course.attendance_weight.toString())
+    setMsg(null)
+  }, [course])
 
   const sum = (Number(m) || 0) + (Number(f) || 0) + (Number(a) || 0)
   const sumOk = Math.abs(sum - 100) < 0.01
@@ -299,36 +290,28 @@ function WeightSettings({
       return
     }
     setSaving(true)
-    const { error } = await supabase
-      .from('class_settings')
-      .update({
+    try {
+      await updateCourseWeights(course.id, {
         midterm_weight: Number(m),
         final_weight: Number(f),
         attendance_weight: Number(a),
-        updated_at: new Date().toISOString(),
       })
-      .eq('id', 1)
-    setSaving(false)
-    if (error) {
-      setMsg({ type: 'err', text: '저장 실패: ' + error.message })
-      return
+      setMsg({ type: 'ok', text: '가중치가 저장되었습니다.' })
+      onSaved()
+    } catch (err: any) {
+      setMsg({ type: 'err', text: '저장 실패: ' + (err?.message ?? err) })
+    } finally {
+      setSaving(false)
     }
-    setMsg({ type: 'ok', text: '가중치가 저장되었습니다.' })
-    onSaved()
   }
 
   return (
     <section className="bg-white rounded-2xl shadow-sm p-4">
       <div className="flex items-center gap-2 mb-3">
         <Calculator className="text-indigo-600" size={18} />
-        <h2 className="text-sm font-semibold text-gray-800">
-          최종점수 가중치 (합계 100)
-        </h2>
+        <h2 className="text-sm font-semibold text-gray-800">최종점수 가중치 (합계 100)</h2>
       </div>
-      <form
-        onSubmit={submit}
-        className="flex flex-wrap items-end gap-3"
-      >
+      <form onSubmit={submit} className="flex flex-wrap items-end gap-3">
         <WeightField label="중간" value={m} onChange={setM} />
         <WeightField label="기말" value={f} onChange={setF} />
         <WeightField label="출석" value={a} onChange={setA} />
@@ -349,11 +332,7 @@ function WeightSettings({
           {saving ? '저장 중...' : '저장'}
         </button>
         {msg && (
-          <span
-            className={`text-sm ${
-              msg.type === 'ok' ? 'text-emerald-700' : 'text-red-700'
-            }`}
-          >
+          <span className={`text-sm ${msg.type === 'ok' ? 'text-emerald-700' : 'text-red-700'}`}>
             {msg.text}
           </span>
         )}
@@ -373,9 +352,7 @@ function WeightField({
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-gray-600 mb-1">
-        {label}
-      </label>
+      <label className="block text-xs font-medium text-gray-600 mb-1">{label}</label>
       <div className="relative">
         <input
           type="number"
@@ -386,9 +363,7 @@ function WeightField({
           onChange={(e) => onChange(e.target.value)}
           className="w-24 pl-3 pr-7 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm tabular-nums"
         />
-        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">
-          %
-        </span>
+        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400">%</span>
       </div>
     </div>
   )

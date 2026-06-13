@@ -1,16 +1,17 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { X } from 'lucide-react'
+import { supabase } from '../lib/supabase'
 import {
-  supabase,
-  supabaseSignup,
-  studentNumberToEmail,
-  type Student,
-} from '../lib/supabase'
+  addStudentToCourse,
+  updateEnrollmentScores,
+  type EnrollmentRow,
+} from '../lib/courses'
 import AnswerSheetGallery from './AnswerSheetGallery'
 
 type Props = {
   open: boolean
-  initial: Student | null
+  courseId: string | null
+  initial: EnrollmentRow | null
   onClose: () => void
   onSaved: () => void
 }
@@ -24,11 +25,11 @@ const empty = {
   final: '',
   attendance: '',
 }
-
 type FormState = typeof empty
 
 export default function StudentFormModal({
   open,
+  courseId,
   initial,
   onClose,
   onSaved,
@@ -40,11 +41,12 @@ export default function StudentFormModal({
 
   useEffect(() => {
     if (initial) {
+      const s = initial.student
       setForm({
-        student_number: initial.student_number,
-        name: initial.name,
-        department: initial.department,
-        phone: initial.phone,
+        student_number: s?.student_number ?? '',
+        name: s?.name ?? '',
+        department: s?.department ?? '',
+        phone: s?.phone ?? '',
         midterm: initial.midterm?.toString() ?? '',
         final: initial.final?.toString() ?? '',
         attendance: initial.attendance?.toString() ?? '',
@@ -57,8 +59,7 @@ export default function StudentFormModal({
 
   if (!open) return null
 
-  const upd = (k: keyof FormState, v: string) =>
-    setForm((p) => ({ ...p, [k]: v }))
+  const upd = (k: keyof FormState, v: string) => setForm((p) => ({ ...p, [k]: v }))
 
   const parseScore = (
     raw: string,
@@ -76,7 +77,6 @@ export default function StudentFormModal({
     e.preventDefault()
     setError(null)
     setSubmitting(true)
-
     const m = parseScore(form.midterm, '중간')
     const f = parseScore(form.final, '기말')
     const a = parseScore(form.attendance, '출석')
@@ -86,55 +86,40 @@ export default function StudentFormModal({
       setSubmitting(false)
       return
     }
-
     try {
       if (isEdit && initial) {
-        const { error: updErr } = await supabase
+        const { error: pErr } = await supabase
           .from('students')
           .update({
-            student_number: form.student_number.trim(),
             name: form.name.trim(),
             department: form.department.trim(),
             phone: form.phone.trim(),
-            midterm: m.value,
-            final: f.value,
-            attendance: a.value,
           })
-          .eq('id', initial.id)
-        if (updErr) throw updErr
-      } else {
-        const studentNumber = form.student_number.trim()
-        const phone = form.phone.trim()
-        const email = studentNumberToEmail(studentNumber)
-
-        const { data: signUpData, error: signUpErr } =
-          await supabaseSignup.auth.signUp({
-            email,
-            password: phone,
-          })
-        if (signUpErr) throw signUpErr
-        const newUserId = signUpData.user?.id
-        if (!newUserId) throw new Error('사용자 ID를 가져오지 못했습니다.')
-
-        const { error: insErr } = await supabase.from('students').insert({
-          id: newUserId,
-          student_number: studentNumber,
-          name: form.name.trim(),
-          department: form.department.trim(),
-          phone,
+          .eq('id', initial.student_id)
+        if (pErr) throw pErr
+        await updateEnrollmentScores(initial.id, {
           midterm: m.value,
           final: f.value,
           attendance: a.value,
-          role: 'student',
         })
-        if (insErr) throw insErr
+      } else {
+        if (!courseId) throw new Error('과목이 선택되지 않았습니다.')
+        await addStudentToCourse(courseId, {
+          student_number: form.student_number,
+          name: form.name,
+          department: form.department,
+          phone: form.phone,
+          midterm: m.value,
+          final: f.value,
+          attendance: a.value,
+        })
       }
       onSaved()
       onClose()
     } catch (err: any) {
       const msg = err?.message ?? String(err)
       if (msg.includes('duplicate') || msg.includes('already'))
-        setError('이미 등록된 학번이거나 이메일입니다.')
+        setError('이미 이 과목에 등록된 학번입니다.')
       else setError('저장 실패: ' + msg)
     } finally {
       setSubmitting(false)
@@ -146,12 +131,9 @@ export default function StudentFormModal({
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between p-5 border-b">
           <h2 className="text-lg font-semibold text-gray-800">
-            {isEdit ? '학생 정보 수정' : '학생 추가'}
+            {isEdit ? '학생 정보 수정' : '학생 추가 (이 과목)'}
           </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600"
-          >
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <X size={20} />
           </button>
         </div>
@@ -194,7 +176,7 @@ export default function StudentFormModal({
           <Field
             label="연락처"
             required
-            hint={!isEdit ? '초기 비밀번호로 사용됩니다' : undefined}
+            hint={!isEdit ? '신규 학생의 초기 비밀번호로 사용됩니다' : undefined}
           >
             <input
               type="text"
@@ -245,10 +227,10 @@ export default function StudentFormModal({
             </Field>
           </div>
 
-          {isEdit && initial && (
+          {isEdit && initial?.student && (
             <div className="space-y-4 pt-2 border-t">
-              <AnswerSheetGallery studentId={initial.id} examType="midterm" />
-              <AnswerSheetGallery studentId={initial.id} examType="final" />
+              <AnswerSheetGallery studentId={initial.student.id} examType="midterm" />
+              <AnswerSheetGallery studentId={initial.student.id} examType="final" />
             </div>
           )}
 
