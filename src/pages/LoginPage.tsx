@@ -86,7 +86,7 @@ export default function LoginPage() {
               autoFocus
               autoComplete="username"
               className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
-              placeholder="예: 20240001"
+              placeholder="예: 2620700"
             />
           </div>
 

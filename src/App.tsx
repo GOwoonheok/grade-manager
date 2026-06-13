@@ -8,6 +8,7 @@ const HomePage = lazy(() => import('./pages/HomePage'))
 const AdminPage = lazy(() => import('./pages/AdminPage'))
 const StudentPage = lazy(() => import('./pages/StudentPage'))
 const StudyPage = lazy(() => import('./pages/StudyPage'))
+const ForcePasswordPage = lazy(() => import('./pages/ForcePasswordPage'))
 
 const Loading = () => (
   <div className="min-h-screen flex items-center justify-center text-gray-500">
@@ -35,6 +36,14 @@ function App() {
               element={
                 <ProtectedRoute>
                   <StudyPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/change-password"
+              element={
+                <ProtectedRoute skipForceCheck>
+                  <ForcePasswordPage />
                 </ProtectedRoute>
               }
             />

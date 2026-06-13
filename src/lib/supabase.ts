@@ -40,6 +40,7 @@ export type Student = {
   // 003 마이그레이션 이후 사용 안 함. score 컬럼은 호환을 위해 일정 기간 유지.
   score?: number | null
   role: Role
+  must_change_password?: boolean
   created_at: string
 }
 
