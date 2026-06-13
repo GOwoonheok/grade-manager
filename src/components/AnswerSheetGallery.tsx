@@ -5,7 +5,7 @@ import {
   type ChangeEvent,
   type ClipboardEvent,
 } from 'react'
-import { Trash2, Plus, Camera, ClipboardPaste, Loader2 } from 'lucide-react'
+import { Trash2, Plus, Camera, ClipboardPaste, Loader2, X } from 'lucide-react'
 import {
   listAnswerSheets,
   signedUrls,
@@ -32,6 +32,7 @@ export default function AnswerSheetGallery({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [cameraOpen, setCameraOpen] = useState(false)
+  const [zoom, setZoom] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const load = async () => {
@@ -183,12 +184,11 @@ export default function AnswerSheetGallery({
         <div className="flex flex-wrap gap-2">
           {thumbs.map((t) =>
             readOnly ? (
-              <a
+              <button
                 key={t.sheet.id}
-                href={t.url}
-                target="_blank"
-                rel="noreferrer"
-                className="block"
+                type="button"
+                onClick={() => setZoom(t.url)}
+                className="block cursor-pointer"
               >
                 <img
                   src={t.url}
@@ -196,14 +196,15 @@ export default function AnswerSheetGallery({
                   loading="lazy"
                   className="w-24 h-24 object-cover rounded-lg border hover:opacity-90"
                 />
-              </a>
+              </button>
             ) : (
               <div key={t.sheet.id} className="relative">
                 <img
                   src={t.url}
                   alt="답안지"
                   loading="lazy"
-                  className="w-20 h-20 object-cover rounded-lg border"
+                  onClick={() => setZoom(t.url)}
+                  className="w-20 h-20 object-cover rounded-lg border cursor-pointer hover:opacity-90"
                 />
                 <button
                   type="button"
@@ -239,6 +240,28 @@ export default function AnswerSheetGallery({
             await uploadAnswerSheet(studentId, examType, blob)
           }}
         />
+      )}
+
+      {zoom && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4"
+          onClick={() => setZoom(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setZoom(null)}
+            className="absolute top-4 right-4 text-white bg-black/50 rounded-full p-1.5 hover:bg-black/80"
+            title="닫기"
+          >
+            <X size={20} />
+          </button>
+          <img
+            src={zoom}
+            alt="답안지 전체보기"
+            className="max-w-full max-h-[90vh] rounded-lg"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
       )}
     </div>
   )

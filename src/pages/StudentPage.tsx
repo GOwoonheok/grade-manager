@@ -113,34 +113,42 @@ function CourseBlock({ en, studentId }: { en: MyEnrollment; studentId: string })
         </h3>
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="grid grid-cols-3 gap-3">
         <ScoreCard label="중간" value={en.midterm} color="gray" icon={<GraduationCap size={18} />} />
         <ScoreCard label="기말" value={en.final} color="gray" icon={<GraduationCap size={18} />} />
         <ScoreCard label="출석" value={en.attendance} color="gray" icon={<CalendarCheck size={18} />} />
-        <ScoreCard
-          label="최종"
-          value={finalScore}
-          color="indigo"
-          icon={<Sparkles size={18} />}
-          sub={c ? `비율 ${ratioText}` : ''}
-        />
       </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <ScoreCard
-          label="반 평균 (최종)"
-          value={stats?.avg_score ?? null}
-          color="gray"
-          icon={<Users size={18} />}
-          sub={stats?.total_count ? `${stats.total_count}명 기준` : ''}
-        />
-        <ScoreCard
-          label="반 최고점 (최종)"
-          value={stats?.max_score ?? null}
-          color="amber"
-          icon={<Trophy size={18} />}
-        />
-      </div>
+      {(c?.scores_published ?? false) ? (
+        <>
+          <div className="grid grid-cols-1 gap-3">
+            <ScoreCard
+              label="최종"
+              value={finalScore}
+              color="indigo"
+              icon={<Sparkles size={18} />}
+              sub={c ? `비율 ${ratioText}` : ''}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <ScoreCard
+              label="반 평균 (최종)"
+              value={stats?.avg_score ?? null}
+              color="gray"
+              icon={<Users size={18} />}
+              sub={stats?.total_count ? `${stats.total_count}명 기준` : ''}
+            />
+            <ScoreCard
+              label="반 최고점 (최종)"
+              value={stats?.max_score ?? null}
+              color="amber"
+              icon={<Trophy size={18} />}
+            />
+          </div>
+        </>
+      ) : (
+        <p className="text-sm text-gray-400 italic">성적 미공개 (교수 공개 전)</p>
+      )}
 
       <div className="space-y-3 pt-1 border-t">
         <div className="flex items-center gap-2">

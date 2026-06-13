@@ -4,3 +4,6 @@ alter table courses
   add column if not exists grade_a_ratio numeric not null default 30,
   add column if not exists grade_b_ratio numeric not null default 40,
   add column if not exists grade_c_ratio numeric not null default 30;
+
+alter table courses
+  add column if not exists scores_published boolean not null default false;

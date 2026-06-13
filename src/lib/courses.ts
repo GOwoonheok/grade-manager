@@ -160,6 +160,11 @@ export async function addStudentToCourse(
   if (e3) throw e3
 }
 
+export async function updateCoursePublished(courseId: string, published: boolean): Promise<void> {
+  const { error } = await supabase.from('courses').update({ scores_published: published }).eq('id', courseId)
+  if (error) throw error
+}
+
 // 과목별 반 통계 (008 RPC). 008 미실행/오류 시 null.
 export type CourseStats = {
   avg_score: number | null

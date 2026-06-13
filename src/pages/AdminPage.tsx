@@ -7,6 +7,7 @@ import {
   listEnrollments,
   removeEnrollment,
   updateCourseGrades,
+  updateCoursePublished,
   updateCourseWeights,
   type EnrollmentRow,
 } from '../lib/courses'
@@ -41,6 +42,7 @@ export default function AdminPage() {
   const [courseModalOpen, setCourseModalOpen] = useState(false)
   const [excelMode, setExcelMode] = useState<ExcelMode | null>(null)
   const [viewer, setViewer] = useState<{ studentId: string; examType: ExamType; name: string } | null>(null)
+  const [publishBusy, setPublishBusy] = useState(false)
 
   const selectedCourse = useMemo(
     () => courses.find((c) => c.id === courseId) ?? null,
@@ -128,6 +130,19 @@ export default function AdminPage() {
     return assignRelativeGrades(items, { a: selectedCourse.grade_a_ratio ?? 30, b: selectedCourse.grade_b_ratio ?? 40 })
   }, [rows, selectedCourse])
 
+  const handleTogglePublish = async () => {
+    if (!courseId || !selectedCourse) return
+    setPublishBusy(true)
+    try {
+      await updateCoursePublished(courseId, !selectedCourse.scores_published)
+      await loadCourses()
+    } catch (e: any) {
+      alert('공개 설정 실패: ' + (e?.message ?? e))
+    } finally {
+      setPublishBusy(false)
+    }
+  }
+
   const handleAdd = () => {
     setEditing(null)
     setFormOpen(true)
@@ -205,6 +220,17 @@ export default function AdminPage() {
               className="flex items-center justify-center gap-1.5 px-4 py-2 border border-indigo-600 text-indigo-700 hover:bg-indigo-50 rounded-lg font-medium"
             >
               <Plus size={18} />새 과목
+            </button>
+            <button
+              onClick={handleTogglePublish}
+              disabled={!courseId || publishBusy}
+              className={`flex items-center justify-center gap-1.5 px-4 py-2 border rounded-lg font-medium disabled:opacity-40 ${
+                selectedCourse?.scores_published
+                  ? 'border-emerald-500 text-emerald-700 hover:bg-emerald-50'
+                  : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+              }`}
+            >
+              {selectedCourse?.scores_published ? '🟢 성적 공개 중' : '비공개 (공개하기)'}
             </button>
           </div>
         </section>

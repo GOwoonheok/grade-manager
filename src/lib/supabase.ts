@@ -120,6 +120,7 @@ export type Course = {
   grade_a_ratio: number
   grade_b_ratio: number
   grade_c_ratio: number
+  scores_published: boolean
   created_at: string
 }
 
