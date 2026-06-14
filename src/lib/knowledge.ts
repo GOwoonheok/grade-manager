@@ -91,6 +91,14 @@ export async function embedPending(deckId: string): Promise<{ embedded: number; 
 
 export type DocSource = { title: string; chunks: number }
 export async function listSources(deckId: string): Promise<DocSource[]> {
+  // 서버 집계(전 행 fetch 방지). 022 미적용 시 클라 집계로 폴백.
+  const rpc = await supabase.rpc('pdf_sources', { p_deck_id: deckId })
+  if (!rpc.error) {
+    return ((rpc.data as { source_title: string; chunks: number }[]) ?? []).map((r) => ({
+      title: r.source_title,
+      chunks: Number(r.chunks),
+    }))
+  }
   const { data, error } = await supabase
     .from('doc_chunks')
     .select('source_title')

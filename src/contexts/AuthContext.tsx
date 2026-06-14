@@ -33,7 +33,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     try {
-      console.log('[Auth] fetchProfile start', userId)
       const { data, error } = await withTimeout(
         Promise.resolve(
           supabase.from('students').select('*').eq('id', userId).maybeSingle(),
@@ -41,8 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         5000,
         'fetchProfile',
       )
-      if (error) console.error('[Auth] fetchProfile error:', error)
-      console.log('[Auth] fetchProfile done', data)
+      if (error) console.error('[Auth] fetchProfile error:', error.message)
       setProfile((data as Student) ?? null)
     } catch (err) {
       console.error('[Auth] fetchProfile threw:', err)
@@ -52,7 +50,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let cancelled = false
-    console.log('[Auth] init start')
 
     const init = async () => {
       try {
@@ -61,25 +58,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           5000,
           'getSession',
         )
-        if (error) console.error('[Auth] getSession error:', error)
-        console.log('[Auth] getSession done. has session?', !!data?.session)
+        if (error) console.error('[Auth] getSession error:', error.message)
         if (cancelled) return
         setSession(data?.session ?? null)
         if (data?.session) await fetchProfile(data.session.user.id)
       } catch (err) {
         console.error('[Auth] init threw:', err)
       } finally {
-        if (!cancelled) {
-          setLoading(false)
-          console.log('[Auth] loading=false')
-        }
+        if (!cancelled) setLoading(false)
       }
     }
 
     init()
 
-    const { data: sub } = supabase.auth.onAuthStateChange(async (event, s) => {
-      console.log('[Auth] onAuthStateChange', event, !!s)
+    const { data: sub } = supabase.auth.onAuthStateChange(async (_event, s) => {
       if (cancelled) return
       setSession(s)
       if (s) await fetchProfile(s.user.id)
