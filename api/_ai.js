@@ -1,6 +1,12 @@
-// /api/_ai.js — 공통 AI 헬퍼. 임베딩(무료, 768차원 통일) + 키 매핑.
+// /api/_ai.js — 공통 AI 헬퍼. 임베딩(gemini-embedding-001, 768차원, 무료) + 키 매핑.
 import { google } from '@ai-sdk/google'
 import { embed, embedMany } from 'ai'
+
+const MODEL = 'gemini-embedding-001' // 현재 GA 임베딩 모델 (text-embedding-004/embedding-001 은 이 키에서 404)
+const DIM = 768                       // doc_chunks vector(768) 와 일치
+const BATCH = 100                     // Gemini 임베딩 1회 최대 100개
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
+const isTransient = (m) => /429|quota|rate|exhaust|unavailable|deadline|temporar|503|500|timeout/i.test(String(m || ''))
 
 // GEMINI_API_KEY → @ai-sdk/google 가 읽는 GOOGLE_GENERATIVE_AI_API_KEY 로 매핑
 export function ensureGeminiKey() {
@@ -10,44 +16,38 @@ export function ensureGeminiKey() {
   return Boolean(process.env.GOOGLE_GENERATIVE_AI_API_KEY)
 }
 
-// 가용 임베딩 모델 폴백 (모두 768차원 = doc_chunks vector(768)). 무료.
-// gemini-embedding-001 은 outputDimensionality 로 768 지정, 나머지는 기본 768.
-const EMBED_CANDIDATES = [
-  { id: 'gemini-embedding-001', dim: 768 },
-  { id: 'text-embedding-004', dim: null },
-  { id: 'embedding-001', dim: null },
-]
-function buildOpts(c, extra) {
-  const o = { model: google.textEmbeddingModel(c.id), ...extra }
-  if (c.dim) o.providerOptions = { google: { outputDimensionality: c.dim } }
-  return o
+const opts = (extra) => ({
+  model: google.textEmbeddingModel(MODEL),
+  providerOptions: { google: { outputDimensionality: DIM } },
+  ...extra,
+})
+
+// 일시 오류(레이트리밋 등)는 백오프 재시도, 그 외는 즉시 throw(진짜 원인 노출)
+async function withRetry(fn) {
+  let err
+  for (let a = 0; a < 4; a++) {
+    try { return await fn() } catch (e) {
+      err = e
+      if (isTransient(e?.message) && a < 3) { await sleep(1500 * (a + 1)); continue }
+      throw e
+    }
+  }
+  throw err
 }
 
 export async function embedOne(text) {
   const value = String(text || '').slice(0, 8000)
-  let lastErr = null
-  for (const c of EMBED_CANDIDATES) {
-    try {
-      const { embedding } = await embed(buildOpts(c, { value }))
-      return embedding
-    } catch (e) { lastErr = e; continue }
-  }
-  throw lastErr || new Error('임베딩 모델 없음')
+  const { embedding } = await withRetry(() => embed(opts({ value })))
+  return embedding
 }
 
 export async function embedBatch(texts) {
   const values = texts.map((t) => String(t || '').slice(0, 8000))
-  const BATCH = 100 // Gemini 임베딩 1회 최대 100개
-  let lastErr = null
-  for (const c of EMBED_CANDIDATES) {
-    try {
-      const all = []
-      for (let i = 0; i < values.length; i += BATCH) {
-        const { embeddings } = await embedMany(buildOpts(c, { values: values.slice(i, i + BATCH) }))
-        all.push(...embeddings)
-      }
-      return all
-    } catch (e) { lastErr = e; continue }
+  const all = []
+  for (let i = 0; i < values.length; i += BATCH) {
+    const res = await withRetry(() => embedMany(opts({ values: values.slice(i, i + BATCH) })))
+    all.push(...res.embeddings)
+    if (i + BATCH < values.length) await sleep(400) // 배치 간 간격(레이트리밋 완화)
   }
-  throw lastErr || new Error('임베딩 모델 없음')
+  return all
 }
