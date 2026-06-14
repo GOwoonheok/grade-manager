@@ -7,7 +7,10 @@ export default function handler(req, res) {
     service: 'smartpps-api',
     time: new Date().toISOString(),
     env: {
-      supabase: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY),
+      supabase: Boolean(
+        (process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL) &&
+          (process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY),
+      ),
       gemini: Boolean(process.env.GEMINI_API_KEY || process.env.GOOGLE_GENERATIVE_AI_API_KEY),
     },
   })

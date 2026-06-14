@@ -11,8 +11,9 @@ export function getBearer(req) {
 export async function verifyProfessor(req) {
   const token = getBearer(req)
   if (!token) return { ok: false, status: 401, reason: 'no-token' }
-  const url = process.env.SUPABASE_URL
-  const key = process.env.SUPABASE_ANON_KEY
+  // 전용 변수가 없으면, 빌드용 VITE_ 변수를 그대로 재사용(런타임에도 노출됨) → 별도 설정 불필요
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL
+  const key = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
   if (!url || !key) return { ok: false, status: 500, reason: 'supabase-env-missing' }
   const sb = createClient(url, key, {
     global: { headers: { Authorization: `Bearer ${token}` } },
