@@ -72,7 +72,15 @@ export default function StudentList({ rows, course, flags, grades, onEdit, onDel
               <div className="grid grid-cols-4 gap-2 text-center">
                 <MobileScore label="중간" value={r.midterm} hasImg={!!(s && f?.midterm)} onImg={() => s && onView(s.id, 'midterm', s.name)} />
                 <MobileScore label="기말" value={r.final} hasImg={!!(s && f?.final)} onImg={() => s && onView(s.id, 'final', s.name)} />
-                <MobileScore label="출석" value={r.attendance} />
+                <MobileScore
+                  label="출석"
+                  value={r.attendance}
+                  sub={
+                    r.att_present != null || r.att_late != null || r.att_absent != null
+                      ? `${r.att_present ?? 0}/${r.att_late ?? 0}/${r.att_absent ?? 0}`
+                      : undefined
+                  }
+                />
                 <MobileScore label="최종" value={finalScore} highlight />
               </div>
             </div>
@@ -139,7 +147,14 @@ export default function StudentList({ rows, course, flags, grades, onEdit, onDel
                     )}
                   </span>
                 </td>
-                <td className="px-4 py-3 text-right tabular-nums text-gray-700">{r.attendance ?? '-'}</td>
+                <td className="px-4 py-3 text-right tabular-nums text-gray-700">
+                  {r.attendance ?? '-'}
+                  {(r.att_present != null || r.att_late != null || r.att_absent != null) && (
+                    <span className="block text-[11px] text-gray-400" title="출석/지각/결석">
+                      {r.att_present ?? 0}/{r.att_late ?? 0}/{r.att_absent ?? 0}
+                    </span>
+                  )}
+                </td>
                 <td className="px-4 py-3 text-right tabular-nums font-semibold text-indigo-700">{finalScore ?? '-'}</td>
                 <td className="px-4 py-3 text-center">
                   {s?.student_number === '0001' ? (
@@ -177,12 +192,14 @@ function MobileScore({
   highlight,
   hasImg,
   onImg,
+  sub,
 }: {
   label: string
   value: number | null
   highlight?: boolean
   hasImg?: boolean
   onImg?: () => void
+  sub?: string
 }) {
   return (
     <div className={`rounded-lg py-1.5 ${highlight ? 'bg-indigo-50' : 'bg-gray-50'}`}>
@@ -197,6 +214,7 @@ function MobileScore({
           )}
         </span>
       </p>
+      {sub && <p className="text-[10px] text-gray-400 tabular-nums" title="출석/지각/결석">{sub}</p>}
     </div>
   )
 }

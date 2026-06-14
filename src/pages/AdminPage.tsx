@@ -7,6 +7,7 @@ import {
   listEnrollments,
   removeEnrollment,
   updateCourseGrades,
+  updateCourseLateRule,
   updateCoursePublished,
   updateCourseWeights,
   type EnrollmentRow,
@@ -311,6 +312,7 @@ export default function AdminPage() {
                   <ExcelButton onClick={() => setExcelMode({ kind: 'score', field: 'midterm' })} label="중간 점수 업로드" />
                   <ExcelButton onClick={() => setExcelMode({ kind: 'score', field: 'final' })} label="기말 점수 업로드" />
                   <ExcelButton onClick={() => setExcelMode({ kind: 'score', field: 'attendance' })} label="출석 점수 업로드" />
+                  <ExcelButton onClick={() => setExcelMode({ kind: 'attendance' })} label="출결 업로드(출석/지각/결석)" />
                 </div>
               </div>
 
@@ -422,6 +424,7 @@ export default function AdminPage() {
           open={!!excelMode}
           mode={excelMode}
           courseId={courseId}
+          latePerAbsent={selectedCourse?.late_per_absent ?? 3}
           roster={rows.flatMap((r) => (r.student ? [r.student] : []))}
           onClose={() => setExcelMode(null)}
           onDone={() => courseId && loadRoster(courseId)}
@@ -438,6 +441,7 @@ function WeightSettings({ course, eligibleCount, onSaved }: { course: Course; el
   const [ga, setGa] = useState('')
   const [gb, setGb] = useState('')
   const [gc, setGc] = useState('')
+  const [lpa, setLpa] = useState('') // 지각 N회 = 결석 1회
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null)
 
@@ -448,6 +452,7 @@ function WeightSettings({ course, eligibleCount, onSaved }: { course: Course; el
     setGa((course.grade_a_ratio ?? 30).toString())
     setGb((course.grade_b_ratio ?? 40).toString())
     setGc((course.grade_c_ratio ?? 30).toString())
+    setLpa((course.late_per_absent ?? 3).toString())
     setMsg(null)
   }, [course])
 
@@ -477,6 +482,7 @@ function WeightSettings({ course, eligibleCount, onSaved }: { course: Course; el
         grade_b_ratio: Number(gb) || 0,
         grade_c_ratio: Number(gc) || 0,
       })
+      await updateCourseLateRule(course.id, Number(lpa) || 3)
       setMsg({ type: 'ok', text: '저장되었습니다.' })
       onSaved()
     } catch (err: any) {
@@ -496,7 +502,7 @@ function WeightSettings({ course, eligibleCount, onSaved }: { course: Course; el
           </div>
           <WeightField label="중간" value={m} onChange={setM} />
           <WeightField label="기말" value={f} onChange={setF} />
-          <WeightField label="출석" value={a} onChange={setA} />
+          <WeightField label="출석/토론" value={a} onChange={setA} />
           <div
             className={`text-sm tabular-nums px-3 py-2 rounded-lg border ${
               sumOk
@@ -505,6 +511,19 @@ function WeightSettings({ course, eligibleCount, onSaved }: { course: Course; el
             }`}
           >
             합계 {sum}
+          </div>
+          <div className="flex items-end gap-1.5 ml-auto">
+            <span className="text-xs text-gray-600 mb-2.5">지각</span>
+            <input
+              type="number"
+              step="1"
+              min="1"
+              value={lpa}
+              onChange={(e) => setLpa(e.target.value)}
+              title="출결 업로드 시 지각 N회를 결석 1회로 환산"
+              className="w-14 px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm tabular-nums text-center"
+            />
+            <span className="text-xs text-gray-600 mb-2.5">회 = 결석 1회</span>
           </div>
         </div>
         <div className="flex flex-wrap items-end gap-3 border-t border-gray-100 pt-3">

@@ -1,5 +1,25 @@
 // 순수 채점 로직 (Supabase 비의존 → 단위 테스트 가능). supabase.ts 가 재노출.
 
+// 출석 점수: 출석/지각/결석 '횟수' → 0~100 점수.
+// 규칙: 지각 latePerAbsent회 = 결석 1회로 환산 후, (총회차 - 환산결석)/총회차 × 100.
+// 총회차 = 출석+지각+결석. 모두 0(미입력)이면 null.
+export function computeAttendanceScore(
+  present: number | null,
+  late: number | null,
+  absent: number | null,
+  latePerAbsent = 3,
+): number | null {
+  const p = Number(present) || 0
+  const l = Number(late) || 0
+  const ab = Number(absent) || 0
+  const total = p + l + ab
+  if (total <= 0) return null
+  const per = Math.max(1, Math.floor(Number(latePerAbsent) || 3))
+  const convertedAbsent = ab + Math.floor(l / per) // 지각 per회마다 결석 1회
+  const score = ((total - convertedAbsent) / total) * 100
+  return Math.max(0, Math.round(score * 100) / 100) // 0 미만 방지, 소수 둘째자리
+}
+
 // 가중치 적용 최종점수. 셋 중 하나라도 NULL이면 null.
 export function calcFinalScore(
   s: { midterm: number | null; final: number | null; attendance: number | null },

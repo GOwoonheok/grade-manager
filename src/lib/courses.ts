@@ -2,6 +2,7 @@ import {
   supabase,
   supabaseSignup,
   studentNumberToEmail,
+  computeAttendanceScore,
   type Course,
   type Enrollment,
   type ScoreField,
@@ -51,6 +52,15 @@ export async function updateCourseWeights(
   w: { midterm_weight: number; final_weight: number; attendance_weight: number },
 ): Promise<void> {
   const { error } = await supabase.from('courses').update(w).eq('id', courseId)
+  if (error) throw error
+}
+
+// 지각 → 결석 환산 기준(지각 N회 = 결석 1회) 저장. 024.
+export async function updateCourseLateRule(courseId: string, latePerAbsent: number): Promise<void> {
+  const { error } = await supabase
+    .from('courses')
+    .update({ late_per_absent: Math.max(1, Math.floor(latePerAbsent)) })
+    .eq('id', courseId)
   if (error) throw error
 }
 
@@ -124,6 +134,36 @@ export async function updateEnrollmentScoreByNumber(
   const { data, error } = await supabase
     .from('enrollments')
     .update({ [field]: value })
+    .eq('course_id', courseId)
+    .eq('student_id', sid)
+    .select('id')
+  if (error) throw error
+  return data && data.length > 0 ? 'ok' : 'not_found'
+}
+
+// 출결 엑셀 업로드: 과목 내 학번으로 출석/지각/결석 '횟수' 저장 + 출석 점수 자동 계산(attendance).
+export async function updateAttendanceByNumber(
+  courseId: string,
+  studentNumber: string,
+  counts: { present: number; late: number; absent: number },
+  latePerAbsent: number,
+): Promise<'ok' | 'not_found'> {
+  const { data: st } = await supabase
+    .from('students')
+    .select('id')
+    .eq('student_number', studentNumber)
+    .maybeSingle()
+  const sid = (st as { id: string } | null)?.id
+  if (!sid) return 'not_found'
+  const attendance = computeAttendanceScore(counts.present, counts.late, counts.absent, latePerAbsent)
+  const { data, error } = await supabase
+    .from('enrollments')
+    .update({
+      att_present: counts.present,
+      att_late: counts.late,
+      att_absent: counts.absent,
+      attendance,
+    })
     .eq('course_id', courseId)
     .eq('student_id', sid)
     .select('id')

@@ -107,7 +107,7 @@ export default function CourseFormModal({
             <div className="flex items-end gap-2">
               <WeightInput label="중간" value={m} onChange={setM} />
               <WeightInput label="기말" value={f} onChange={setF} />
-              <WeightInput label="출석" value={a} onChange={setA} />
+              <WeightInput label="출석/토론" value={a} onChange={setA} />
               <span
                 className={`text-sm px-2 py-2 ${
                   Math.abs(sum - 100) < 0.01 ? 'text-emerald-700' : 'text-amber-700'

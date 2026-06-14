@@ -1,8 +1,8 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import { X, Upload, FileSpreadsheet, CheckCircle2, AlertCircle, Download } from 'lucide-react'
-import { SCORE_LABEL, type ScoreField, type Student } from '../lib/supabase'
+import { SCORE_LABEL, computeAttendanceScore, type ScoreField, type Student } from '../lib/supabase'
 import { downloadScoreTemplate } from '../lib/excelTemplate'
-import { addStudentToCourse, updateEnrollmentScoreByNumber } from '../lib/courses'
+import { addStudentToCourse, updateAttendanceByNumber, updateEnrollmentScoreByNumber } from '../lib/courses'
 
 type RegisterRow = {
   name: string
@@ -21,6 +21,14 @@ type ScoreRow = {
   _error?: string
 }
 
+type AttendanceRow = {
+  student_number: string
+  present: number
+  late: number
+  absent: number
+  _error?: string
+}
+
 type Result = {
   student_number: string
   name?: string
@@ -31,11 +39,13 @@ type Result = {
 export type ExcelMode =
   | { kind: 'register' }
   | { kind: 'score'; field: ScoreField }
+  | { kind: 'attendance' }
 
 type Props = {
   open: boolean
   mode: ExcelMode
   courseId: string
+  latePerAbsent?: number // 출결 모드: 지각 N회=결석 1회 환산 기준
   onClose: () => void
   onDone: () => void
   roster: Pick<Student, 'student_number' | 'name'>[]
@@ -53,10 +63,11 @@ const REGISTER_HEADER_MAP: Record<string, keyof RegisterRow> = {
 
 const isScoreInRange = (n: number) => !isNaN(n) && n >= 0 && n <= 100
 
-export default function ExcelUploadModal({ open, mode, courseId, onClose, onDone, roster }: Props) {
+export default function ExcelUploadModal({ open, mode, courseId, latePerAbsent = 3, onClose, onDone, roster }: Props) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [registerRows, setRegisterRows] = useState<RegisterRow[]>([])
   const [scoreRows, setScoreRows] = useState<ScoreRow[]>([])
+  const [attRows, setAttRows] = useState<AttendanceRow[]>([])
   const [fileName, setFileName] = useState<string | null>(null)
   const [parseError, setParseError] = useState<string | null>(null)
   const [uploading, setUploading] = useState(false)
@@ -65,11 +76,16 @@ export default function ExcelUploadModal({ open, mode, courseId, onClose, onDone
   if (!open) return null
 
   const totalRows =
-    mode.kind === 'register' ? registerRows.length : scoreRows.length
+    mode.kind === 'register'
+      ? registerRows.length
+      : mode.kind === 'attendance'
+      ? attRows.length
+      : scoreRows.length
 
   const reset = () => {
     setRegisterRows([])
     setScoreRows([])
+    setAttRows([])
     setFileName(null)
     setParseError(null)
     setResults([])
@@ -93,6 +109,55 @@ export default function ExcelUploadModal({ open, mode, courseId, onClose, onDone
       const buf = await file.arrayBuffer()
       const wb = XLSX.read(buf)
       const sheet = wb.Sheets[wb.SheetNames[0]]
+
+      // 출결 모드: 배열(header:1)로 읽어 아이디/출석/지각/결석 컬럼 위치를 탐색(주차별 칸은 무시)
+      if (mode.kind === 'attendance') {
+        const aoa = XLSX.utils.sheet_to_json<any[]>(sheet, { header: 1, defval: '' })
+        let hi = aoa.findIndex((r) =>
+          (r as any[]).some((c) => {
+            const s = String(c).trim()
+            return s.includes('아이디') || s.includes('학번')
+          }),
+        )
+        if (hi < 0) hi = 0
+        const head = (aoa[hi] || []).map((c: any) => String(c).trim())
+        const idIdx = head.findIndex((h) => h.includes('아이디') || h.includes('학번'))
+        let pIdx = -1, lIdx = -1, aIdx = -1
+        const triIdx = head.findIndex((h) => h.replace(/\s/g, '') === '출석/지각/결석')
+        if (triIdx >= 0) {
+          pIdx = triIdx; lIdx = triIdx + 1; aIdx = triIdx + 2
+        } else {
+          pIdx = head.indexOf('출석'); lIdx = head.indexOf('지각'); aIdx = head.indexOf('결석')
+        }
+        if (idIdx < 0 || pIdx < 0 || lIdx < 0 || aIdx < 0) {
+          setParseError('헤더를 찾을 수 없습니다 (아이디/학번 + 출석/지각/결석 필요).')
+          return
+        }
+        const num = (v: any) => {
+          const n = Number(String(v).trim())
+          return isNaN(n) ? 0 : Math.max(0, Math.floor(n))
+        }
+        const parsed: AttendanceRow[] = (aoa.slice(hi + 1) as any[][])
+          .filter((r) => String(r[idIdx] ?? '').trim() !== '')
+          .map((r) => {
+            const row: AttendanceRow = {
+              student_number: String(r[idIdx]).trim(),
+              present: num(r[pIdx]),
+              late: num(r[lIdx]),
+              absent: num(r[aIdx]),
+            }
+            if (!row.student_number) row._error = '학번이 비어있습니다'
+            else if (row.present + row.late + row.absent <= 0) row._error = '출석/지각/결석 합이 0'
+            return row
+          })
+        if (parsed.length === 0) {
+          setParseError('유효한 출결 데이터가 없습니다.')
+          return
+        }
+        setAttRows(parsed)
+        return
+      }
+
       const json = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, {
         defval: '',
       })
@@ -211,6 +276,31 @@ export default function ExcelUploadModal({ open, mode, courseId, onClose, onDone
         }
         setResults([...out])
       }
+    } else if (mode.kind === 'attendance') {
+      // 출결: 학번으로 찾아 출석/지각/결석 횟수 저장 + 출석 점수 자동 계산
+      for (const row of attRows) {
+        if (row._error) {
+          out.push({ student_number: row.student_number, ok: false, error: row._error })
+          setResults([...out])
+          continue
+        }
+        try {
+          const res = await updateAttendanceByNumber(
+            courseId,
+            row.student_number,
+            { present: row.present, late: row.late, absent: row.absent },
+            latePerAbsent,
+          )
+          out.push(
+            res === 'ok'
+              ? { student_number: row.student_number, ok: true }
+              : { student_number: row.student_number, ok: false, error: '이 과목에 등록되지 않은 학번' },
+          )
+        } catch (err: any) {
+          out.push({ student_number: row.student_number, ok: false, error: err?.message ?? String(err) })
+        }
+        setResults([...out])
+      }
     } else {
       // 점수 갱신: 학번으로 찾아 해당 컬럼만 update
       const field = mode.field
@@ -262,16 +352,22 @@ export default function ExcelUploadModal({ open, mode, courseId, onClose, onDone
   const title =
     mode.kind === 'register'
       ? '엑셀 일괄 등록 (신규 학생)'
+      : mode.kind === 'attendance'
+      ? '출결 일괄 업로드 (출석/지각/결석)'
       : `${SCORE_LABEL[mode.field]} 점수 일괄 업로드`
 
   const headerHint =
     mode.kind === 'register'
       ? '헤더: 이름 / 학과 / 학번 / 연락처 / 중간 / 기말 / 출석'
+      : mode.kind === 'attendance'
+      ? '헤더: 아이디(학번) / 출석 / 지각 / 결석 — 주차별 칸은 무시'
       : `헤더: 학번 / 점수 (또는 ${SCORE_LABEL[mode.field]})`
 
   const allRowsErrored =
     mode.kind === 'register'
       ? registerRows.every((r) => r._error)
+      : mode.kind === 'attendance'
+      ? attRows.every((r) => r._error)
       : scoreRows.every((r) => r._error)
 
   return (
@@ -386,6 +482,39 @@ export default function ExcelUploadModal({ open, mode, courseId, onClose, onDone
                       ))}
                     </tbody>
                   </table>
+                ) : mode.kind === 'attendance' ? (
+                  <table className="min-w-full text-xs">
+                    <thead className="bg-gray-50 text-gray-600">
+                      <tr>
+                        <th className="px-2 py-2 text-left">학번</th>
+                        <th className="px-2 py-2 text-right">출석</th>
+                        <th className="px-2 py-2 text-right">지각</th>
+                        <th className="px-2 py-2 text-right">결석</th>
+                        <th className="px-2 py-2 text-right">출석점수</th>
+                        <th className="px-2 py-2 text-left">상태</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {attRows.map((r, i) => (
+                        <tr key={i} className={r._error ? 'bg-red-50' : ''}>
+                          <td className="px-2 py-1.5 font-mono">
+                            {r.student_number}
+                          </td>
+                          <td className="px-2 py-1.5 text-right">{r.present}</td>
+                          <td className="px-2 py-1.5 text-right">{r.late}</td>
+                          <td className="px-2 py-1.5 text-right">{r.absent}</td>
+                          <td className="px-2 py-1.5 text-right font-medium">
+                            {r._error
+                              ? '-'
+                              : computeAttendanceScore(r.present, r.late, r.absent, latePerAbsent) ?? '-'}
+                          </td>
+                          <td className="px-2 py-1.5 text-red-600">
+                            {r._error ?? ''}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 ) : (
                   <table className="min-w-full text-xs">
                     <thead className="bg-gray-50 text-gray-600">
@@ -485,6 +614,8 @@ export default function ExcelUploadModal({ open, mode, courseId, onClose, onDone
                 ? '처리 중...'
                 : mode.kind === 'register'
                 ? `${totalRows}명 일괄 등록`
+                : mode.kind === 'attendance'
+                ? `${totalRows}건 출결 반영`
                 : `${totalRows}건 점수 갱신`}
             </button>
           )}

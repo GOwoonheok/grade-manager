@@ -104,6 +104,13 @@ function CourseBlock({ en, studentId }: { en: MyEnrollment; studentId: string })
 
   const published = c?.scores_published ?? false
 
+  // 출석 세부 횟수(출석/지각/결석) — 입력된 경우만 표시. 지각 N회=결석 1회 환산 기준 안내.
+  const attDetail =
+    en.att_present != null || en.att_late != null || en.att_absent != null
+      ? `출석 ${en.att_present ?? 0} · 지각 ${en.att_late ?? 0} · 결석 ${en.att_absent ?? 0}` +
+        (c?.late_per_absent ? ` (지각 ${c.late_per_absent}회=결석 1회)` : '')
+      : ''
+
   return (
     <section className="bg-white rounded-2xl shadow-sm p-5 space-y-4">
       <div className="flex items-center gap-2">
@@ -116,7 +123,7 @@ function CourseBlock({ en, studentId }: { en: MyEnrollment; studentId: string })
       <div className="grid grid-cols-3 gap-3">
         <ScoreCard label="중간" value={en.midterm} color="gray" icon={<GraduationCap size={18} />} />
         <ScoreCard label="기말" value={en.final} color="gray" icon={<GraduationCap size={18} />} />
-        <ScoreCard label="출석" value={en.attendance} color="gray" icon={<CalendarCheck size={18} />} />
+        <ScoreCard label="출석" value={en.attendance} color="gray" icon={<CalendarCheck size={18} />} sub={attDetail} />
       </div>
 
       {/* 최종: 항상 환산식 안내, 값은 공개 전이면 '공개전' */}
@@ -126,7 +133,7 @@ function CourseBlock({ en, studentId }: { en: MyEnrollment; studentId: string })
           value={published ? finalScore : '공개전'}
           color="indigo"
           icon={<Sparkles size={18} />}
-          sub={c ? `중간(${c.midterm_weight}%) + 기말(${c.final_weight}%) + 출석(${c.attendance_weight}%)` : ''}
+          sub={c ? `중간(${c.midterm_weight}%) + 기말(${c.final_weight}%) + 출석/토론(${c.attendance_weight}%)` : ''}
         />
       </div>
       {published && (

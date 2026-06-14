@@ -75,7 +75,7 @@ export const SCORE_LABEL: Record<ScoreField, string> = {
 }
 
 // 채점 로직은 ./grading 으로 분리(단위 테스트 가능). 호환 위해 재노출.
-export { calcFinalScore, assignRelativeGrades } from './grading'
+export { calcFinalScore, assignRelativeGrades, computeAttendanceScore } from './grading'
 
 export type ExamType = 'midterm' | 'final'
 
@@ -102,6 +102,7 @@ export type Course = {
   grade_b_ratio: number
   grade_c_ratio: number
   scores_published: boolean
+  late_per_absent: number // 지각 N회 = 결석 1회 환산 기준 (기본 3, 024)
   created_at: string
 }
 
@@ -111,6 +112,10 @@ export type Enrollment = {
   student_id: string
   midterm: number | null
   final: number | null
-  attendance: number | null
+  attendance: number | null // 출석 점수(출석/지각/결석 횟수로 자동 계산)
+  // 출석 세부 횟수 (024). 출결 엑셀 업로드로 채움.
+  att_present?: number | null
+  att_late?: number | null
+  att_absent?: number | null
   created_at: string
 }
