@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { FileText, Square, Trash2, Upload } from 'lucide-react'
 import { listDecks, type Deck } from '../lib/flashcards'
-import { countPending, deleteSource, embedPending, ingestPdf, listSources, type DocSource } from '../lib/knowledge'
+import { countPending, deleteSource, embedPending, ingestPdf, listSources, splitPdfBySize, type DocSource } from '../lib/knowledge'
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
@@ -66,10 +66,19 @@ export default function KnowledgeUpload() {
     e.target.value = ''
     if (!file || !deckId) return
     setBusy(true)
-    setMsg('PDF 업로드·텍스트 추출 중…')
     try {
-      const r = await ingestPdf(deckId, file)
-      setMsg(`"${file.name}" 텍스트 ${r.total}조각 추출${r.truncated ? '(상한 초과분 제외)' : ''} — 자동 색인을 시작합니다.`)
+      let parts: File[] = [file]
+      if (file.size > 45 * 1024 * 1024) {
+        setMsg('큰 파일 — 50MB 한도에 맞춰 분할 중…')
+        parts = await splitPdfBySize(file)
+      }
+      let totalChunks = 0
+      for (let i = 0; i < parts.length; i++) {
+        setMsg(parts.length > 1 ? `파트 ${i + 1}/${parts.length} 업로드·추출 중…` : 'PDF 업로드·텍스트 추출 중…')
+        const r = await ingestPdf(deckId, parts[i])
+        totalChunks += r.total
+      }
+      setMsg(`${parts.length > 1 ? `${parts.length}개 파트 · ` : ''}텍스트 ${totalChunks}조각 추출 — 자동 색인을 시작합니다.`)
       setBusy(false)
       await runEmbed(deckId)
     } catch (err: any) {
@@ -96,10 +105,10 @@ export default function KnowledgeUpload() {
         <>
           <label className={`flex items-center justify-center gap-2 border-2 border-dashed rounded-xl p-5 cursor-pointer transition ${busy || embedding ? 'opacity-50 pointer-events-none' : 'border-gray-300 hover:border-indigo-400 hover:bg-indigo-50/30'}`}>
             <Upload size={18} className="text-gray-400" />
-            <span className="text-sm text-gray-600">{busy ? '업로드·추출 중…' : 'PDF 업로드 (텍스트형, 최대 ~50MB)'}</span>
+            <span className="text-sm text-gray-600">{busy ? '처리 중…' : 'PDF 업로드 (텍스트형 · 50MB↑ 자동 분할)'}</span>
             <input type="file" accept="application/pdf,.pdf" onChange={onFile} disabled={busy || embedding} className="hidden" />
           </label>
-          <p className="text-xs text-gray-400">※ 큰 PDF도 자동으로 분당 ~90조각씩 색인(이 화면 열어두세요) · HWP는 PDF로 내보내 업로드 · 스캔(이미지) PDF는 추출 안 됨.</p>
+          <p className="text-xs text-gray-400">※ 50MB↑ PDF는 자동 분할 업로드 · 큰 문서는 분당 ~90조각 자동 색인(화면 열어두세요) · HWP는 PDF로 · 스캔(이미지)본은 글자 추출 안 됨.</p>
 
           {embedding && (
             <div className="space-y-1 bg-indigo-50/60 border border-indigo-100 rounded-lg p-3">

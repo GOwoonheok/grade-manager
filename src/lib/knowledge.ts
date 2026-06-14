@@ -1,5 +1,31 @@
 import { supabase } from './supabase'
 
+// 큰 PDF(>~45MB)를 브라우저에서 페이지 단위로 분할 (각 파트 ~42MB 목표). pdf-lib 동적 로드.
+export async function splitPdfBySize(file: File, targetBytes = 42 * 1024 * 1024): Promise<File[]> {
+  const { PDFDocument } = await import('pdf-lib')
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  const src = await PDFDocument.load(bytes, { ignoreEncryption: true })
+  const n = src.getPageCount()
+  if (n <= 1) return [file]
+  const avg = file.size / n
+  let per = Math.max(1, Math.floor(targetBytes / Math.max(avg, 1)))
+  per = Math.min(per, n, 120)
+  if (per >= n) return [file]
+  const base = file.name.replace(/\.pdf$/i, '')
+  const parts: File[] = []
+  let idx = 1
+  for (let start = 0; start < n; start += per) {
+    const doc = await PDFDocument.create()
+    const end = Math.min(start + per, n)
+    const pages = await doc.copyPages(src, Array.from({ length: end - start }, (_, k) => start + k))
+    pages.forEach((p) => doc.addPage(p))
+    const out = await doc.save()
+    parts.push(new File([out], `${base}_part${idx}.pdf`, { type: 'application/pdf' }))
+    idx++
+  }
+  return parts
+}
+
 // V2: PDF 근거자료 업로드/관리. 추출·청킹·임베딩은 서버(/api/ingest, unpdf)에서.
 export async function ingestPdf(
   deckId: string,
