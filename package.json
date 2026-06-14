@@ -13,6 +13,7 @@
   "dependencies": {
     "@ai-sdk/google": "^2.0.75",
     "@supabase/supabase-js": "^2.45.0",
+    "@vercel/functions": "^3.7.1",
     "ai": "^5.0.201",
     "lucide-react": "^0.460.0",
     "pdf-lib": "^1.17.1",

@@ -1,68 +1,65 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { FileText, Square, Trash2, Upload } from 'lucide-react'
+import { FileText, Play, Trash2, Upload } from 'lucide-react'
 import { listDecks, type Deck } from '../lib/flashcards'
-import { countPending, deleteSource, embedPending, ingestPdf, listSources, splitPdfBySize, type DocSource } from '../lib/knowledge'
+import { countPending, deleteSource, ingestPdf, listSources, splitPdfBySize, startEmbedding, type DocSource } from '../lib/knowledge'
 
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
-
-// V2-B: PDF 근거자료 — 업로드 시 텍스트만 빠르게 저장 후, 분당 ~90개씩 자동 임베딩(무료 한도 대응).
+// V2-B: PDF 근거자료 — 업로드 시 텍스트만 빠르게 저장 후, 서버 백그라운드에서 분당 ~90조각 자동 색인.
+// 클릭 1회로 시작하면 서버가 스스로 이어서(self-chain) 끝까지 처리 → 화면(탭)을 닫아도 계속 진행됨.
 export default function KnowledgeUpload() {
   const [decks, setDecks] = useState<Deck[]>([])
   const [deckId, setDeckId] = useState('')
   const [sources, setSources] = useState<DocSource[]>([])
   const [pending, setPending] = useState(0)
-  const [busy, setBusy] = useState(false) // 업로드·추출 단계
-  const [embedding, setEmbedding] = useState(false) // 자동 색인 루프
-  const [embTotal, setEmbTotal] = useState(0)
-  const [embDone, setEmbDone] = useState(0)
+  const [embTotal, setEmbTotal] = useState(0) // 진행률 분모(색인 시작 시점의 대기 수)
+  const [busy, setBusy] = useState(false)      // 업로드·추출 단계
+  const [kicking, setKicking] = useState(false) // 색인 시작 요청 중
   const [msg, setMsg] = useState<string | null>(null)
-  const cancelRef = useRef(false)
+  const prevPending = useRef(0)
 
   useEffect(() => { listDecks().then(setDecks).catch(() => {}) }, [])
+
   const load = () => {
     if (!deckId) { setSources([]); return }
     listSources(deckId).then(setSources).catch((e) => setMsg('목록 실패 — 018~020 적용 확인: ' + (e?.message ?? e)))
   }
-  const refreshPending = () => {
-    if (!deckId) { setPending(0); return }
-    countPending(deckId).then(setPending).catch(() => setPending(0))
-  }
-  // 분야 변경: 이전 분야의 색인 루프 중단 + 화면 초기화(분야별로 명확히 구분)
+
+  // 분야 변경/마운트: 목록 로드 + 대기 수 폴링(서버 진행상황 반영). 화면을 닫아도 서버는 계속 진행.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    cancelRef.current = true
-    setEmbedding(false); setEmbTotal(0); setEmbDone(0)
-    setMsg(null); load(); refreshPending()
+    setMsg(null); setEmbTotal(0); setPending(0); prevPending.current = 0
+    if (!deckId) { setSources([]); return }
+    load()
+    let alive = true
+    const tick = async () => {
+      try {
+        const p = await countPending(deckId)
+        if (!alive) return
+        setPending(p)
+        if (p > 0) setEmbTotal((t) => Math.max(t, p))
+        if (prevPending.current > 0 && p === 0) { setMsg('✅ 전체 색인 완료!'); setEmbTotal(0); load() }
+        prevPending.current = p
+      } catch { /* 폴링 실패는 무시 */ }
+    }
+    tick()
+    const iv = setInterval(tick, 12000)
+    return () => { alive = false; clearInterval(iv) }
   }, [deckId])
 
-  // 분당 ~90개씩 대기 청크 임베딩 (화면 열려있는 동안). 끝나거나 중지까지 반복.
-  const runEmbed = async (id: string) => {
-    setEmbedding(true)
-    cancelRef.current = false
-    setMsg(null)
+  // 서버 백그라운드 색인 시작(또는 이어서 진행). 클릭 1회면 서버가 끝까지 처리.
+  const kick = async () => {
+    if (!deckId) return
+    setKicking(true); setMsg(null)
     try {
-      const total = await countPending(id)
-      setEmbTotal(total)
-      setEmbDone(0)
-      if (total === 0) { setMsg('색인할 대기 항목이 없습니다.'); return }
-      while (!cancelRef.current) {
-        let r
-        try {
-          r = await embedPending(id)
-        } catch (e: any) {
-          setMsg('임베딩 일시 오류 — 60초 후 자동 재시도: ' + (e?.message ?? e))
-          await sleep(60000)
-          continue
-        }
-        setEmbDone(total - r.remaining)
-        if (r.remaining <= 0) { setMsg(`✅ 전체 색인 완료! (${total}조각)`); break }
-        await sleep(60000) // 무료 분당 한도 → 다음 90개까지 대기
-      }
-      if (cancelRef.current) setMsg('색인을 멈췄습니다. "이어서 색인"으로 계속할 수 있어요.')
+      const r = await startEmbedding()
+      setMsg(r.started
+        ? '서버에서 자동 색인을 시작했습니다 — 화면을 닫아도 계속 진행됩니다.'
+        : '이미 서버에서 색인이 진행 중입니다 — 화면을 닫아도 됩니다.')
+      const p = await countPending(deckId)
+      setPending(p); if (p > 0) setEmbTotal((t) => Math.max(t, p)); prevPending.current = p
+    } catch (e: any) {
+      setMsg('색인 시작 실패: ' + (e?.message ?? e))
     } finally {
-      setEmbedding(false)
-      refreshPending()
-      load()
+      setKicking(false)
     }
   }
 
@@ -83,9 +80,9 @@ export default function KnowledgeUpload() {
         const r = await ingestPdf(deckId, parts[i])
         totalChunks += r.total
       }
-      setMsg(`${parts.length > 1 ? `${parts.length}개 파트 · ` : ''}텍스트 ${totalChunks}조각 추출 — 자동 색인을 시작합니다.`)
       setBusy(false)
-      await runEmbed(deckId)
+      setMsg(`${parts.length > 1 ? `${parts.length}개 파트 · ` : ''}텍스트 ${totalChunks}조각 추출 — 서버 자동 색인을 시작합니다.`)
+      await kick()
     } catch (err: any) {
       setMsg('실패: ' + (err?.message ?? err))
       setBusy(false)
@@ -94,10 +91,10 @@ export default function KnowledgeUpload() {
 
   const onDelete = async (title: string) => {
     if (!window.confirm(`"${title}" 임베딩을 삭제할까요?`)) return
-    try { await deleteSource(deckId, title); load(); refreshPending() } catch (e: any) { setMsg('삭제 실패: ' + (e?.message ?? e)) }
+    try { await deleteSource(deckId, title); load() } catch (e: any) { setMsg('삭제 실패: ' + (e?.message ?? e)) }
   }
 
-  const pct = embTotal ? Math.round((embDone / embTotal) * 100) : 0
+  const pct = embTotal ? Math.round(((embTotal - pending) / embTotal) * 100) : 0
 
   return (
     <div className="space-y-3">
@@ -108,30 +105,26 @@ export default function KnowledgeUpload() {
 
       {deckId && (
         <>
-          <label className={`flex items-center justify-center gap-2 border-2 border-dashed rounded-xl p-5 cursor-pointer transition ${busy || embedding ? 'opacity-50 pointer-events-none' : 'border-gray-300 hover:border-indigo-400 hover:bg-indigo-50/30'}`}>
+          <label className={`flex items-center justify-center gap-2 border-2 border-dashed rounded-xl p-5 cursor-pointer transition ${busy ? 'opacity-50 pointer-events-none' : 'border-gray-300 hover:border-indigo-400 hover:bg-indigo-50/30'}`}>
             <Upload size={18} className="text-gray-400" />
             <span className="text-sm text-gray-600">{busy ? '처리 중…' : 'PDF 업로드 (텍스트형 · 50MB↑ 자동 분할)'}</span>
-            <input type="file" accept="application/pdf,.pdf" onChange={onFile} disabled={busy || embedding} className="hidden" />
+            <input type="file" accept="application/pdf,.pdf" onChange={onFile} disabled={busy} className="hidden" />
           </label>
-          <p className="text-xs text-gray-400">※ 50MB↑ PDF는 자동 분할 업로드 · 큰 문서는 분당 ~90조각 자동 색인(화면 열어두세요) · HWP는 PDF로 · 스캔(이미지)본은 글자 추출 안 됨.</p>
+          <p className="text-xs text-gray-400">※ 색인은 서버 백그라운드에서 분당 ~90조각씩 자동 진행 — <b>화면(탭)을 닫아도 계속</b>됩니다. · 50MB↑ PDF 자동 분할 · HWP는 PDF로 · 스캔(이미지)본은 글자 추출 안 됨.</p>
 
-          {embedding && (
-            <div className="space-y-1 bg-indigo-50/60 border border-indigo-100 rounded-lg p-3">
+          {pending > 0 && (
+            <div className="space-y-1.5 bg-indigo-50/60 border border-indigo-100 rounded-lg p-3">
               <div className="flex items-center justify-between text-xs text-gray-700">
-                <span>🔄 자동 색인 중… (분당 ~90 · 화면 열어두세요)</span>
-                <span className="tabular-nums">{embDone}/{embTotal} ({pct}%)</span>
+                <span>🔄 서버에서 자동 색인 중 — 화면을 닫아도 계속됩니다</span>
+                <span className="tabular-nums">{embTotal ? `${embTotal - pending}/${embTotal} (${pct}%)` : `남은 ${pending}조각`}</span>
               </div>
               <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                 <div className="h-2 bg-indigo-500 rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
               </div>
-              <button onClick={() => { cancelRef.current = true }} className="text-xs text-red-600 inline-flex items-center gap-1 mt-0.5"><Square size={12} />중지</button>
+              <button onClick={kick} disabled={kicking} className="text-xs text-indigo-700 inline-flex items-center gap-1 mt-0.5 disabled:opacity-50">
+                <Play size={12} />{kicking ? '요청 중…' : '이어서 진행 / 재시도'}
+              </button>
             </div>
-          )}
-
-          {!embedding && pending > 0 && (
-            <button onClick={() => runEmbed(deckId)} className="w-full text-sm px-3 py-2 border border-indigo-500 text-indigo-700 rounded-lg font-medium">
-              미완료 색인 {pending}조각 — 이어서 진행 ▶
-            </button>
           )}
 
           {msg && <p className="text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{msg}</p>}

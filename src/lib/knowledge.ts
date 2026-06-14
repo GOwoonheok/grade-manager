@@ -74,19 +74,20 @@ export async function countEmbedded(deckId: string): Promise<number> {
   return count ?? 0
 }
 
-// 대기 청크 ~90개 임베딩 (분당 호출). { embedded, remaining, done }
-export async function embedPending(deckId: string): Promise<{ embedded: number; remaining: number; done: boolean }> {
+// 서버 백그라운드 색인 시작/이어가기. 클릭 1회면 서버가 self-chain 으로 끝까지 진행(탭 닫아도 계속).
+// 이미 다른 체인이 돌고 있으면 started:false, running:true 로 응답.
+export async function startEmbedding(): Promise<{ running: boolean; started: boolean; remaining: number }> {
   const { data: { session } } = await supabase.auth.getSession()
   const token = session?.access_token
   if (!token) throw new Error('로그인이 필요합니다')
-  const res = await fetch('/api/embed-pending', {
+  const res = await fetch('/api/embed-run', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ deckId }),
+    body: JSON.stringify({}),
   })
   const j = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error((j?.error || '임베딩 실패') + (j?.detail ? `: ${j.detail}` : ''))
-  return { embedded: j.embedded ?? 0, remaining: j.remaining ?? 0, done: !!j.done }
+  if (!res.ok) throw new Error((j?.error || '색인 시작 실패') + (j?.detail ? `: ${j.detail}` : ''))
+  return { running: !!j.running, started: !!j.started, remaining: j.remaining ?? 0 }
 }
 
 export type DocSource = { title: string; chunks: number }
