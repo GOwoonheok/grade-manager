@@ -190,7 +190,7 @@ export async function addStudentToCourse(
     midterm: number | null
     final: number | null
     attendance: number | null
-    extra?: number | null // 미지정 시 DB 기본값(10) 적용
+    extra?: number | null // 미지정 시 DB 기본값(100, 만점) 적용
   },
 ): Promise<void> {
   const sn = p.student_number.trim()
@@ -235,7 +235,7 @@ export async function addStudentToCourse(
     final: p.final,
     attendance: p.attendance,
   }
-  if (p.extra !== undefined) enrollRow.extra = p.extra // 미지정이면 컬럼 생략 → DB 기본값 10
+  if (p.extra !== undefined) enrollRow.extra = p.extra // 미지정이면 컬럼 생략 → DB 기본값 100(만점)
   const { error: e3 } = await supabase.from('enrollments').insert(enrollRow)
   if (e3) throw e3
 }

@@ -26,7 +26,7 @@ const empty = {
   midterm: '',
   final: '',
   attendance: '',
-  extra: '10', // 이번 학기 4번째 항목 기본 10점
+  extra: '100', // 토론 만점(100) 기본 — 가중치 10%면 최종 10점 기여
 }
 type FormState = typeof empty
 

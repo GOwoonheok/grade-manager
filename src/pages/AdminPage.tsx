@@ -456,8 +456,16 @@ function WeightSettings({ course, eligibleCount, onSaved }: { course: Course; el
   useEffect(() => {
     setM(course.midterm_weight.toString())
     setF(course.final_weight.toString())
-    setA(course.attendance_weight.toString())
-    setX((course.extra_weight ?? 0).toString())
+    const aw = course.attendance_weight
+    const xw = course.extra_weight ?? 0
+    // 토론 가중치 미설정(0%)이면 출석에서 10% 떼어 토론 10% 기본 제안(합 100 유지). 저장하면 확정.
+    if (xw === 0 && aw >= 10) {
+      setA((aw - 10).toString())
+      setX('10')
+    } else {
+      setA(aw.toString())
+      setX(xw.toString())
+    }
     setXlabel(course.extra_label ?? '토론')
     setGa((course.grade_a_ratio ?? 30).toString())
     setGb((course.grade_b_ratio ?? 40).toString())
@@ -495,7 +503,7 @@ function WeightSettings({ course, eligibleCount, onSaved }: { course: Course; el
         grade_c_ratio: Number(gc) || 0,
       })
       await updateCourseLateRule(course.id, Number(lpa) || 3)
-      setMsg({ type: 'ok', text: '저장되었습니다.' })
+      setMsg({ type: 'ok', text: '저장됨 — 최종점수·등급이 자동 재계산되었습니다.' })
       onSaved()
     } catch (err: any) {
       setMsg({ type: 'err', text: '저장 실패: ' + (err?.message ?? err) })

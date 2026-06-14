@@ -120,7 +120,7 @@ export type Enrollment = {
   midterm: number | null
   final: number | null
   attendance: number | null // 출석 점수(출석/지각/결석 횟수로 자동 계산)
-  extra: number | null // 4번째 항목 점수(토론/참여 등). 이번 학기 기본 10점 (025)
+  extra: number | null // 4번째 항목 점수(토론/참여 등), 100점 만점. 기본 만점 100 (025/026)
   // 출석 세부 횟수 (024). 출결 엑셀 업로드로 채움.
   att_present?: number | null
   att_late?: number | null

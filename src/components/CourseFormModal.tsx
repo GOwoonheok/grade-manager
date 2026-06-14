@@ -16,8 +16,8 @@ export default function CourseFormModal({
   const [name, setName] = useState('')
   const [m, setM] = useState('30')
   const [f, setF] = useState('40')
-  const [a, setA] = useState('30')
-  const [x, setX] = useState('0') // 4번째 항목 가중치
+  const [a, setA] = useState('20')
+  const [x, setX] = useState('10') // 4번째 항목(토론) 가중치 기본 10%
   const [xlabel, setXlabel] = useState('토론') // 4번째 항목 표시명
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
