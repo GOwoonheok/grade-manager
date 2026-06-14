@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Check, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react'
+import { Check, Database, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react'
 import { listCards, listDecks, listTopics, type Deck, type Topic } from '../lib/flashcards'
 import {
   createAiQuestions,
   createQuestion,
   deleteQuestion,
+  embedDeck,
   generateQuestions,
   listQuestions,
   setQuestionStatus,
@@ -33,6 +34,7 @@ export default function QuizAdmin() {
   const [aiCount, setAiCount] = useState(5)
   const [aiBusy, setAiBusy] = useState(false)
   const [aiMsg, setAiMsg] = useState<string | null>(null)
+  const [embedBusy, setEmbedBusy] = useState(false)
 
   useEffect(() => { listDecks().then(setDecks).catch((e) => setErr(e.message)) }, [])
   useEffect(() => {
@@ -55,11 +57,13 @@ export default function QuizAdmin() {
       const cards = await listCards(topicId)
       if (cards.length === 0) { setAiMsg('이 토픽에 카드가 없습니다 — 먼저 플래시카드를 등록하세요.'); return }
       const topicName = topics.find((t) => t.id === topicId)?.name ?? ''
-      const items = await generateQuestions(
+      const items = await generateQuestions({
+        deckId,
+        topicId,
         topicName,
-        cards.map((c) => ({ term: c.term, definition: c.definition, content: c.content, keywords: c.keywords })),
-        aiCount,
-      )
+        cards: cards.map((c) => ({ term: c.term, definition: c.definition, content: c.content, keywords: c.keywords })),
+        count: aiCount,
+      })
       const n = await createAiQuestions(topicId, items)
       setAiMsg(`AI가 ${n}개 생성(검토대기). 아래에서 "검증"하면 학생에게 노출됩니다.`)
       load()
@@ -67,6 +71,19 @@ export default function QuizAdmin() {
       setAiMsg('생성 실패: ' + (e?.message ?? e))
     } finally {
       setAiBusy(false)
+    }
+  }
+
+  const onEmbed = async () => {
+    if (!deckId) return
+    setEmbedBusy(true); setAiMsg(null)
+    try {
+      const n = await embedDeck(deckId)
+      setAiMsg(`이 분야 카드 ${n}개를 벡터로 임베딩했습니다 — 이제 AI 생성이 근거 기반(환각↓)으로 동작합니다.`)
+    } catch (e: any) {
+      setAiMsg('임베딩 실패: ' + (e?.message ?? e))
+    } finally {
+      setEmbedBusy(false)
     }
   }
 
@@ -82,6 +99,12 @@ export default function QuizAdmin() {
           {topics.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
         </select>
       </div>
+
+      {deckId && (
+        <button onClick={onEmbed} disabled={embedBusy} className="inline-flex items-center gap-1 px-3 py-1.5 border border-violet-500 text-violet-700 rounded-lg text-sm font-medium disabled:opacity-50">
+          <Database size={15} />{embedBusy ? '임베딩 중...' : '이 분야 임베딩 생성/갱신'}
+        </button>
+      )}
 
       {err && <p className="text-sm text-red-600">{err}</p>}
 

@@ -102,19 +102,21 @@ export async function saveAttempt(
   if (error) throw error
 }
 
-// C2: AI 문제 생성 (교수 전용 /api/quiz-gen). 카드 컨텍스트 → 4지선다. 결과는 draft로 저장 후 검수.
-export async function generateQuestions(
-  topicName: string,
-  cards: { term: string; definition: string; content: string; keywords: string }[],
-  count: number,
-): Promise<QuestionInput[]> {
+// C2/V1: AI 문제 생성 (교수 전용 /api/quiz-gen). 분야 임베딩 있으면 top-k 근거로(환각↓), 없으면 카드 폴백.
+export async function generateQuestions(p: {
+  deckId: string
+  topicId: string
+  topicName: string
+  cards: { term: string; definition: string; content: string; keywords: string }[]
+  count: number
+}): Promise<QuestionInput[]> {
   const { data: { session } } = await supabase.auth.getSession()
   const token = session?.access_token
   if (!token) throw new Error('로그인이 필요합니다')
   const res = await fetch('/api/quiz-gen', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ topicName, cards, count }),
+    body: JSON.stringify(p),
   })
   const j = await res.json().catch(() => ({}))
   if (!res.ok) {
@@ -122,6 +124,21 @@ export async function generateQuestions(
     throw new Error(msg + (j?.reason ? ` (${j.reason})` : '') + (j?.hint ? ` — ${j.hint}` : ''))
   }
   return (j.items as QuestionInput[]) ?? []
+}
+
+// V1: 분야(deck) 카드 임베딩 생성/갱신 (검색·근거 생성용)
+export async function embedDeck(deckId: string): Promise<number> {
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+  if (!token) throw new Error('로그인이 필요합니다')
+  const res = await fetch('/api/embed-cards', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ deckId }),
+  })
+  const j = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((j?.error || '임베딩 실패') + (j?.detail ? `: ${j.detail}` : ''))
+  return (j.count as number) ?? 0
 }
 
 export async function createAiQuestions(topicId: string, items: QuestionInput[]): Promise<number> {
