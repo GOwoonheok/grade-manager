@@ -4,7 +4,7 @@ import { supabase } from './supabase'
 export async function ingestPdf(
   deckId: string,
   file: File,
-): Promise<{ count: number; chars: number; total: number; truncated: boolean }> {
+): Promise<{ total: number; chars: number; truncated: boolean }> {
   const { data: { session } } = await supabase.auth.getSession()
   const token = session?.access_token
   if (!token) throw new Error('로그인이 필요합니다')
@@ -25,7 +25,32 @@ export async function ingestPdf(
     await supabase.storage.from('knowledge-docs').remove([path]).catch(() => {})
     throw new Error((j?.error || '처리 실패') + (j?.detail ? `: ${j.detail}` : ''))
   }
-  return { count: j.count ?? 0, chars: j.chars ?? 0, total: j.total ?? 0, truncated: !!j.truncated }
+  return { total: j.total ?? 0, chars: j.chars ?? 0, truncated: !!j.truncated }
+}
+
+// 대기(미임베딩) 청크 수
+export async function countPending(deckId: string): Promise<number> {
+  const { count } = await supabase
+    .from('doc_chunks')
+    .select('id', { count: 'exact', head: true })
+    .eq('deck_id', deckId)
+    .is('embedding', null)
+  return count ?? 0
+}
+
+// 대기 청크 ~90개 임베딩 (분당 호출). { embedded, remaining, done }
+export async function embedPending(deckId: string): Promise<{ embedded: number; remaining: number; done: boolean }> {
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+  if (!token) throw new Error('로그인이 필요합니다')
+  const res = await fetch('/api/embed-pending', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ deckId }),
+  })
+  const j = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((j?.error || '임베딩 실패') + (j?.detail ? `: ${j.detail}` : ''))
+  return { embedded: j.embedded ?? 0, remaining: j.remaining ?? 0, done: !!j.done }
 }
 
 export type DocSource = { title: string; chunks: number }

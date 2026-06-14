@@ -1,11 +1,11 @@
-// /api/ingest — Storage의 PDF(≤50MB) → 텍스트 추출(unpdf) → 청킹 → 임베딩 → doc_chunks.
-//   POST { deckId, title, path }  (path = knowledge-docs 버킷 내 경로, 브라우저가 먼저 업로드)
-//   처리 후 원본 PDF 삭제(텍스트만 보관). 교수 전용·무료.
+// /api/ingest — Storage의 PDF → 텍스트 추출(unpdf) → 청킹 → doc_chunks에 '대기(embedding NULL)'로 저장.
+// 임베딩은 /api/embed-pending 가 분당 ~90개씩 처리(무료 한도 대응). 교수 전용.
+//   POST { deckId, title, path } → { ok, total, chars, truncated }
 import { verifyProfessor } from './_supa.js'
-import { ensureGeminiKey, embedBatch } from './_ai.js'
 import { extractText, getDocumentProxy } from 'unpdf'
 
 const BUCKET = 'knowledge-docs'
+const MAX_CHUNKS = 1500 // 한 문서 상한(DB·시간 보호)
 
 function chunkText(text, size = 800, overlap = 100) {
   const clean = String(text || '').replace(/\s+/g, ' ').trim()
@@ -26,7 +26,6 @@ export default async function handler(req, res) {
   }
   const auth = await verifyProfessor(req)
   if (!auth.ok) return res.status(auth.status).json({ error: 'unauthorized', reason: auth.reason })
-  if (!ensureGeminiKey()) return res.status(500).json({ error: 'GEMINI_API_KEY 미설정' })
 
   let body = req.body
   if (typeof body === 'string') { try { body = JSON.parse(body) } catch { return res.status(400).json({ error: 'invalid json' }) } }
@@ -36,7 +35,6 @@ export default async function handler(req, res) {
   if (!deckId || !path) return res.status(400).json({ error: 'deckId/path required' })
   if (!path.startsWith(deckId + '/')) return res.status(400).json({ error: 'invalid path' })
 
-  // Storage에서 PDF 다운로드 (교수 RLS)
   const { data: blob, error: dErr } = await auth.sb.storage.from(BUCKET).download(path)
   if (dErr || !blob) return res.status(404).json({ error: '파일을 찾을 수 없음', detail: dErr?.message })
   const buf = Buffer.from(await blob.arrayBuffer())
@@ -52,37 +50,24 @@ export default async function handler(req, res) {
   }
 
   const allChunks = chunkText(text)
-  // 무료 임베딩 분당 한도(100) 안에서 확실히 처리 → 한 업로드당 ≤90조각. 초과분은 잘림(분할 업로드 권장).
-  const chunks = allChunks.slice(0, 90)
+  const chunks = allChunks.slice(0, MAX_CHUNKS)
   if (chunks.length === 0) {
     await auth.sb.storage.from(BUCKET).remove([path]).catch(() => {})
     return res.status(422).json({ error: '추출된 텍스트가 없습니다 (스캔본/이미지 PDF일 수 있음)' })
   }
 
-  let embeddings
-  try { embeddings = await embedBatch(chunks) } catch (e) {
-    await auth.sb.storage.from(BUCKET).remove([path]).catch(() => {})
-    return res.status(502).json({ error: '임베딩 실패', detail: String(e?.message || e) })
-  }
-
-  const payload = chunks.map((content, i) => ({
-    deck_id: deckId, source: 'pdf', source_title: title, content, embedding: embeddings[i],
-  }))
-  for (let i = 0; i < payload.length; i += 100) {
-    const { error } = await auth.sb.from('doc_chunks').insert(payload.slice(i, i + 100))
+  // 임베딩 없이 '대기'로 저장 (빠름·쿼터 0). 임베딩은 embed-pending이 분당 처리.
+  const payload = chunks.map((content) => ({ deck_id: deckId, source: 'pdf', source_title: title, content, embedding: null }))
+  for (let i = 0; i < payload.length; i += 200) {
+    const { error } = await auth.sb.from('doc_chunks').insert(payload.slice(i, i + 200))
     if (error) {
       await auth.sb.storage.from(BUCKET).remove([path]).catch(() => {})
       return res.status(500).json({ error: 'doc_chunks insert failed', detail: error.message })
     }
   }
 
-  // 원본 PDF 삭제 (텍스트만 보관 → 용량 절약)
   await auth.sb.storage.from(BUCKET).remove([path]).catch(() => {})
   return res.status(200).json({
-    ok: true,
-    count: payload.length,
-    chars: text.length,
-    total: allChunks.length,
-    truncated: allChunks.length > chunks.length,
+    ok: true, total: chunks.length, chars: text.length, truncated: allChunks.length > chunks.length,
   })
 }
