@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { BookOpen, Check, ChevronDown, ChevronLeft, ChevronUp, ClipboardCheck, ExternalLink, Eye, Image as ImageIcon, Info, MessagesSquare, Pencil, Plus, Search, Trash2, X as XIcon } from 'lucide-react'
+import { BookOpen, Check, ChevronDown, ChevronLeft, ChevronUp, ClipboardCheck, ClipboardList, ExternalLink, Eye, Image as ImageIcon, Info, MessagesSquare, Pencil, Plus, Search, Trash2, X as XIcon } from 'lucide-react'
 import {
   bulkCreateCards,
   NOTEBOOKLM_URL,
@@ -29,6 +29,7 @@ import QnaBoard from './QnaBoard'
 import StudyIntro from './StudyIntro'
 import StudyMenuTile from './StudyMenuTile'
 import CardSearch from './CardSearch'
+import QuizAdmin from './QuizAdmin'
 
 const STATUS_LABEL: Record<string, string> = { pending: '대기', approved: '승인', rejected: '거부' }
 const STATUS_CLS: Record<string, string> = {
@@ -37,7 +38,7 @@ const STATUS_CLS: Record<string, string> = {
   rejected: 'text-red-600',
 }
 
-type View = 'menu' | 'intro' | 'flash' | 'qna' | 'approve' | 'search'
+type View = 'menu' | 'intro' | 'flash' | 'qna' | 'approve' | 'search' | 'quiz'
 
 export default function AdminStudy() {
   const [view, setView] = useState<View>('menu')
@@ -78,6 +79,7 @@ export default function AdminStudy() {
         <StudyMenuTile icon={<Info size={26} />} title="공공조달관리사 소개" desc="자격 개요와 과목 안내" onClick={() => setView('intro')} />
         <StudyMenuTile icon={<BookOpen size={26} />} title="플래시카드 관리" desc="과목 · 토픽 · 카드 등록/수정" onClick={() => setView('flash')} />
         <StudyMenuTile icon={<Search size={26} />} title="카드 조회 / 검색" desc="키워드로 카드 찾아보기" onClick={() => setView('search')} />
+        <StudyMenuTile icon={<ClipboardList size={26} />} title="CBT 문제 관리" desc="예상문제 등록·검수 (4지선다)" onClick={() => setView('quiz')} />
         <StudyMenuTile icon={<MessagesSquare size={26} />} title="같이 공부하기 (Q&A)" desc="질문 확인 · 답변" onClick={() => setView('qna')} />
         <StudyMenuTile icon={<ExternalLink size={26} />} title="NotebookLM 질문하기" desc="공공조달관리사 노트북 (새 탭)" onClick={() => { window.open(NOTEBOOKLM_URL, '_blank', 'noopener,noreferrer') }} />
         <StudyMenuTile icon={<ClipboardCheck size={26} />} title="학습 신청 승인" desc={pending > 0 ? `${pending}건 대기중` : '신청 내역 관리'} onClick={() => setView('approve')} />
@@ -93,6 +95,7 @@ export default function AdminStudy() {
 
       {view === 'intro' && <StudyIntro />}
       {view === 'search' && <CardSearch />}
+      {view === 'quiz' && <QuizAdmin />}
       {view === 'qna' && <QnaBoard />}
 
       {view === 'flash' && (

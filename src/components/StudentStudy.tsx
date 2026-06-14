@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { BookOpen, ChevronLeft, ChevronRight, ExternalLink, Info, MessagesSquare, Search } from 'lucide-react'
+import { BookOpen, ChevronLeft, ChevronRight, ExternalLink, Info, ListChecks, MessagesSquare, Search } from 'lucide-react'
 import {
   getMyStudyStatus,
   listCards,
@@ -17,8 +17,9 @@ import CardPlayer from './CardPlayer'
 import StudyIntro from './StudyIntro'
 import StudyMenuTile from './StudyMenuTile'
 import CardSearch from './CardSearch'
+import QuizPlayer from './QuizPlayer'
 
-type View = 'menu' | 'intro' | 'flash' | 'qna' | 'search'
+type View = 'menu' | 'intro' | 'flash' | 'qna' | 'search' | 'cbt'
 
 export default function StudentStudy() {
   const [view, setView] = useState<View>('menu')
@@ -29,6 +30,7 @@ export default function StudentStudy() {
         <StudyMenuTile icon={<Info size={26} />} title="공공조달관리사 소개" desc="자격 개요와 과목 안내" onClick={() => setView('intro')} />
         <StudyMenuTile icon={<BookOpen size={26} />} title="플래시카드 학습" desc="과목 · 토픽별 카드로 암기 학습" onClick={() => setView('flash')} />
         <StudyMenuTile icon={<Search size={26} />} title="카드 조회 / 검색" desc="키워드로 카드 찾아보기" onClick={() => setView('search')} />
+        <StudyMenuTile icon={<ListChecks size={26} />} title="CBT 문제풀이" desc="예상문제 풀고 채점·해설" onClick={() => setView('cbt')} />
         <StudyMenuTile icon={<MessagesSquare size={26} />} title="같이 공부하기 (Q&A)" desc="질문하고 함께 답하기" onClick={() => setView('qna')} />
         <StudyMenuTile icon={<ExternalLink size={26} />} title="NotebookLM 질문하기" desc="공공조달관리사 노트북에서 AI 질의응답 (새 탭)" onClick={() => { window.open(NOTEBOOKLM_URL, '_blank', 'noopener,noreferrer') }} />
       </div>
@@ -42,6 +44,7 @@ export default function StudentStudy() {
       {view === 'intro' && <StudyIntro />}
       {view === 'flash' && <FlashStudy />}
       {view === 'search' && <CardSearch />}
+      {view === 'cbt' && <QuizPlayer />}
       {view === 'qna' && <QnaBoard />}
     </div>
   )
