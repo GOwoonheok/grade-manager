@@ -22,13 +22,18 @@ const opts = (extra) => ({
   ...extra,
 })
 
+// 서버가 'retry in Xs' 를 알려주면 그만큼 대기
+function suggestedDelayMs(msg) {
+  const m = /retry in ([\d.]+)s/i.exec(String(msg || ''))
+  return m ? Math.ceil(parseFloat(m[1]) * 1000) + 500 : 0
+}
 // 일시 오류(레이트리밋 등)는 백오프 재시도, 그 외는 즉시 throw(진짜 원인 노출)
 async function withRetry(fn) {
   let err
   for (let a = 0; a < 4; a++) {
     try { return await fn() } catch (e) {
       err = e
-      if (isTransient(e?.message) && a < 3) { await sleep(1500 * (a + 1)); continue }
+      if (isTransient(e?.message) && a < 3) { await sleep(suggestedDelayMs(e?.message) || 1500 * (a + 1)); continue }
       throw e
     }
   }

@@ -32,9 +32,14 @@ export default function KnowledgeUpload() {
     setBusy(true)
     setMsg(null)
     try {
-      const { count, chars } = await ingestPdf(deckId, file)
+      const r = await ingestPdf(deckId, file)
       const took = Math.round((Date.now() - startRef.current) / 1000)
-      setMsg(`"${file.name}" 완료 — ${count}조각(${chars.toLocaleString()}자) · 총 ${took}초. 이제 AI 생성·검색 근거로 쓰입니다.`)
+      setMsg(
+        `"${file.name}" 완료 — ${r.count}조각 색인(${r.chars.toLocaleString()}자) · 총 ${took}초.` +
+        (r.truncated
+          ? ` ⚠️ 분량이 많아 앞부분만 색인(전체 ${r.total}조각 중 ${r.count}). 나눠 올리면 전체가 색인됩니다.`
+          : ' 이제 AI 생성·검색 근거로 쓰입니다.'),
+      )
       load()
     } catch (err: any) {
       setMsg('실패: ' + (err?.message ?? err))
@@ -62,7 +67,7 @@ export default function KnowledgeUpload() {
             <span className="text-sm text-gray-600">{busy ? '처리 중…' : 'PDF 업로드 (텍스트형, 최대 ~50MB)'}</span>
             <input type="file" accept="application/pdf,.pdf" onChange={onFile} disabled={busy} className="hidden" />
           </label>
-          <p className="text-xs text-gray-400">※ HWP는 "PDF로 내보내기" 후 업로드 · 스캔(이미지) PDF는 글자 추출이 안 됩니다.</p>
+          <p className="text-xs text-gray-400">※ 무료 임베딩 한도로 한 번에 ~90조각(약 30~40쪽)까지 색인 — 더 크면 나눠 올리세요 · HWP는 PDF로 내보내 업로드 · 스캔(이미지) PDF는 추출 안 됨.</p>
           <ProgressTimer running={busy} estSec={estSec} label="PDF 분석·임베딩 중…" />
           {msg && <p className="text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{msg}</p>}
 

@@ -51,7 +51,9 @@ export default async function handler(req, res) {
     return res.status(422).json({ error: 'PDF 텍스트 추출 실패', detail: String(e?.message || e) })
   }
 
-  const chunks = chunkText(text).slice(0, 400)
+  const allChunks = chunkText(text)
+  // 무료 임베딩 분당 한도(100) 안에서 확실히 처리 → 한 업로드당 ≤90조각. 초과분은 잘림(분할 업로드 권장).
+  const chunks = allChunks.slice(0, 90)
   if (chunks.length === 0) {
     await auth.sb.storage.from(BUCKET).remove([path]).catch(() => {})
     return res.status(422).json({ error: '추출된 텍스트가 없습니다 (스캔본/이미지 PDF일 수 있음)' })
@@ -76,5 +78,11 @@ export default async function handler(req, res) {
 
   // 원본 PDF 삭제 (텍스트만 보관 → 용량 절약)
   await auth.sb.storage.from(BUCKET).remove([path]).catch(() => {})
-  return res.status(200).json({ ok: true, count: payload.length, chars: text.length })
+  return res.status(200).json({
+    ok: true,
+    count: payload.length,
+    chars: text.length,
+    total: allChunks.length,
+    truncated: allChunks.length > chunks.length,
+  })
 }

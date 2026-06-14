@@ -1,7 +1,10 @@
 import { supabase } from './supabase'
 
 // V2: PDF 근거자료 업로드/관리. 추출·청킹·임베딩은 서버(/api/ingest, unpdf)에서.
-export async function ingestPdf(deckId: string, file: File): Promise<{ count: number; chars: number }> {
+export async function ingestPdf(
+  deckId: string,
+  file: File,
+): Promise<{ count: number; chars: number; total: number; truncated: boolean }> {
   const { data: { session } } = await supabase.auth.getSession()
   const token = session?.access_token
   if (!token) throw new Error('로그인이 필요합니다')
@@ -22,7 +25,7 @@ export async function ingestPdf(deckId: string, file: File): Promise<{ count: nu
     await supabase.storage.from('knowledge-docs').remove([path]).catch(() => {})
     throw new Error((j?.error || '처리 실패') + (j?.detail ? `: ${j.detail}` : ''))
   }
-  return { count: j.count ?? 0, chars: j.chars ?? 0 }
+  return { count: j.count ?? 0, chars: j.chars ?? 0, total: j.total ?? 0, truncated: !!j.truncated }
 }
 
 export type DocSource = { title: string; chunks: number }
