@@ -1,9 +1,11 @@
 import { useEffect, useState } from 'react'
-import { Check, Pencil, Plus, Trash2, X } from 'lucide-react'
-import { listDecks, listTopics, type Deck, type Topic } from '../lib/flashcards'
+import { Check, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react'
+import { listCards, listDecks, listTopics, type Deck, type Topic } from '../lib/flashcards'
 import {
+  createAiQuestions,
   createQuestion,
   deleteQuestion,
+  generateQuestions,
   listQuestions,
   setQuestionStatus,
   updateQuestion,
@@ -28,6 +30,9 @@ export default function QuizAdmin() {
   const [err, setErr] = useState<string | null>(null)
   const [editing, setEditing] = useState<QuizQuestion | null>(null)
   const [adding, setAdding] = useState(false)
+  const [aiCount, setAiCount] = useState(5)
+  const [aiBusy, setAiBusy] = useState(false)
+  const [aiMsg, setAiMsg] = useState<string | null>(null)
 
   useEffect(() => { listDecks().then(setDecks).catch((e) => setErr(e.message)) }, [])
   useEffect(() => {
@@ -43,6 +48,27 @@ export default function QuizAdmin() {
   useEffect(() => { setErr(null); setEditing(null); setAdding(false); load() }, [topicId])
 
   const onSaved = () => { setEditing(null); setAdding(false); load() }
+
+  const onAiGen = async () => {
+    setAiBusy(true); setAiMsg(null)
+    try {
+      const cards = await listCards(topicId)
+      if (cards.length === 0) { setAiMsg('이 토픽에 카드가 없습니다 — 먼저 플래시카드를 등록하세요.'); return }
+      const topicName = topics.find((t) => t.id === topicId)?.name ?? ''
+      const items = await generateQuestions(
+        topicName,
+        cards.map((c) => ({ term: c.term, definition: c.definition, content: c.content, keywords: c.keywords })),
+        aiCount,
+      )
+      const n = await createAiQuestions(topicId, items)
+      setAiMsg(`AI가 ${n}개 생성(검토대기). 아래에서 "검증"하면 학생에게 노출됩니다.`)
+      load()
+    } catch (e: any) {
+      setAiMsg('생성 실패: ' + (e?.message ?? e))
+    } finally {
+      setAiBusy(false)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -61,12 +87,19 @@ export default function QuizAdmin() {
 
       {topicId && (
         <>
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
             <p className="text-sm text-gray-600">문제 {list.length}개</p>
             {!adding && !editing && (
-              <button onClick={() => setAdding(true)} className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium"><Plus size={16} />문제 추가</button>
+              <div className="flex items-center gap-2">
+                <select value={aiCount} onChange={(e) => setAiCount(Number(e.target.value))} className="px-2 py-1.5 border border-gray-300 rounded-lg text-sm bg-white" title="AI 생성 개수">
+                  {[5, 10, 15, 20].map((n) => <option key={n} value={n}>{n}개</option>)}
+                </select>
+                <button onClick={onAiGen} disabled={aiBusy} className="inline-flex items-center gap-1 px-3 py-1.5 border border-emerald-600 text-emerald-700 rounded-lg text-sm font-medium disabled:opacity-50"><Sparkles size={16} />{aiBusy ? '생성 중...' : 'AI 생성'}</button>
+                <button onClick={() => setAdding(true)} className="inline-flex items-center gap-1 px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-medium"><Plus size={16} />문제 추가</button>
+              </div>
             )}
           </div>
+          {aiMsg && <p className="text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{aiMsg}</p>}
 
           {(adding || editing) && (
             <QuizForm topicId={topicId} initial={editing} onSaved={onSaved} onCancel={() => { setAdding(false); setEditing(null) }} />

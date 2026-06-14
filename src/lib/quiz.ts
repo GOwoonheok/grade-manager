@@ -101,3 +101,43 @@ export async function saveAttempt(
     .insert({ student_id: user.id, topic_id: topicId, total, score, detail })
   if (error) throw error
 }
+
+// C2: AI 문제 생성 (교수 전용 /api/quiz-gen). 카드 컨텍스트 → 4지선다. 결과는 draft로 저장 후 검수.
+export async function generateQuestions(
+  topicName: string,
+  cards: { term: string; definition: string; content: string; keywords: string }[],
+  count: number,
+): Promise<QuestionInput[]> {
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+  if (!token) throw new Error('로그인이 필요합니다')
+  const res = await fetch('/api/quiz-gen', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ topicName, cards, count }),
+  })
+  const j = await res.json().catch(() => ({}))
+  if (!res.ok) {
+    const msg = j?.error || 'AI 생성 실패'
+    throw new Error(msg + (j?.reason ? ` (${j.reason})` : '') + (j?.hint ? ` — ${j.hint}` : ''))
+  }
+  return (j.items as QuestionInput[]) ?? []
+}
+
+export async function createAiQuestions(topicId: string, items: QuestionInput[]): Promise<number> {
+  if (items.length === 0) return 0
+  const payload = items.map((q) => ({
+    topic_id: topicId,
+    type: 'mcq',
+    stem: q.stem,
+    choices: q.choices,
+    answer: q.answer,
+    explanation: q.explanation || '',
+    difficulty: q.difficulty || 'normal',
+    source: 'ai',
+    status: 'draft', // 생성본은 검토대기 → 교수 검증 후 학생 노출
+  }))
+  const { error } = await supabase.from('quiz_questions').insert(payload)
+  if (error) throw error
+  return items.length
+}
