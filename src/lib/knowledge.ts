@@ -69,6 +69,25 @@ export async function listSources(deckId: string): Promise<DocSource[]> {
   return Object.entries(m).map(([title, chunks]) => ({ title, chunks }))
 }
 
+// B-2: RAG 상담 — 질문 → 근거 기반 답변. deckId='' 면 전체 분야.
+export type RagSource = { content: string; topic_id: string | null }
+export async function askRag(
+  deckId: string,
+  question: string,
+): Promise<{ answer: string; sources: RagSource[]; grounded: boolean }> {
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+  if (!token) throw new Error('로그인이 필요합니다')
+  const res = await fetch('/api/ask', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ deckId: deckId || undefined, question }),
+  })
+  const j = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error((j?.error || '응답 실패') + (j?.detail ? `: ${j.detail}` : ''))
+  return { answer: j.answer ?? '', sources: j.sources ?? [], grounded: !!j.grounded }
+}
+
 export async function deleteSource(deckId: string, title: string): Promise<void> {
   const { error } = await supabase
     .from('doc_chunks')

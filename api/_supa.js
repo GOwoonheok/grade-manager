@@ -26,3 +26,19 @@ export async function verifyProfessor(req) {
   if (!isProf) return { ok: false, status: 403, reason: 'not-professor' }
   return { ok: true, user, sb }
 }
+
+// 로그인 사용자(학생 포함) 검증. RLS가 자료 접근범위 통제(승인 학습자/교수).
+export async function verifyUser(req) {
+  const token = getBearer(req)
+  if (!token) return { ok: false, status: 401, reason: 'no-token' }
+  const url = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL
+  const key = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY
+  if (!url || !key) return { ok: false, status: 500, reason: 'supabase-env-missing' }
+  const sb = createClient(url, key, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false },
+  })
+  const { data: { user }, error } = await sb.auth.getUser(token)
+  if (error || !user) return { ok: false, status: 401, reason: 'invalid-token: ' + (error?.message || 'no user') }
+  return { ok: true, user, sb }
+}

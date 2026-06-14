@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react'
-import { BookOpen, Check, ChevronDown, ChevronLeft, ChevronUp, ClipboardCheck, ClipboardList, ExternalLink, Eye, FileText, Image as ImageIcon, Info, MessagesSquare, Pencil, Plus, Search, Trash2, X as XIcon } from 'lucide-react'
+import { BookOpen, Bot, Check, ChevronDown, ChevronLeft, ChevronUp, ClipboardCheck, ClipboardList, ExternalLink, Eye, FileText, Image as ImageIcon, Info, MessagesSquare, Pencil, Plus, Search, Trash2, X as XIcon } from 'lucide-react'
 import {
   bulkCreateCards,
   NOTEBOOKLM_URL,
@@ -31,6 +31,7 @@ import StudyMenuTile from './StudyMenuTile'
 import CardSearch from './CardSearch'
 import QuizAdmin from './QuizAdmin'
 import KnowledgeUpload from './KnowledgeUpload'
+import RagChat from './RagChat'
 
 const STATUS_LABEL: Record<string, string> = { pending: '대기', approved: '승인', rejected: '거부' }
 const STATUS_CLS: Record<string, string> = {
@@ -39,7 +40,7 @@ const STATUS_CLS: Record<string, string> = {
   rejected: 'text-red-600',
 }
 
-type View = 'menu' | 'intro' | 'flash' | 'qna' | 'approve' | 'search' | 'quiz' | 'knowledge'
+type View = 'menu' | 'intro' | 'flash' | 'qna' | 'approve' | 'search' | 'quiz' | 'knowledge' | 'rag'
 
 export default function AdminStudy() {
   const [view, setView] = useState<View>('menu')
@@ -82,6 +83,7 @@ export default function AdminStudy() {
         <StudyMenuTile icon={<Search size={26} />} title="카드 조회 / 검색" desc="키워드로 카드 찾아보기" onClick={() => setView('search')} />
         <StudyMenuTile icon={<ClipboardList size={26} />} title="CBT 문제 관리" desc="예상문제 등록·검수 (4지선다)" onClick={() => setView('quiz')} />
         <StudyMenuTile icon={<FileText size={26} />} title="근거자료(PDF)" desc="PDF 업로드 → AI 생성·검색 근거" onClick={() => setView('knowledge')} />
+        <StudyMenuTile icon={<Bot size={26} />} title="AI 상담 (질문답변)" desc="학습자료 근거 질문답변" onClick={() => setView('rag')} />
         <StudyMenuTile icon={<MessagesSquare size={26} />} title="같이 공부하기 (Q&A)" desc="질문 확인 · 답변" onClick={() => setView('qna')} />
         <StudyMenuTile icon={<ExternalLink size={26} />} title="NotebookLM 질문하기" desc="공공조달관리사 노트북 (새 탭)" onClick={() => { window.open(NOTEBOOKLM_URL, '_blank', 'noopener,noreferrer') }} />
         <StudyMenuTile icon={<ClipboardCheck size={26} />} title="학습 신청 승인" desc={pending > 0 ? `${pending}건 대기중` : '신청 내역 관리'} onClick={() => setView('approve')} />
@@ -99,6 +101,7 @@ export default function AdminStudy() {
       {view === 'search' && <CardSearch />}
       {view === 'quiz' && <QuizAdmin />}
       {view === 'knowledge' && <KnowledgeUpload />}
+      {view === 'rag' && <RagChat />}
       {view === 'qna' && <QnaBoard />}
 
       {view === 'flash' && (
