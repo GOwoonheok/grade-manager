@@ -37,11 +37,16 @@ export async function embedOne(text) {
 
 export async function embedBatch(texts) {
   const values = texts.map((t) => String(t || '').slice(0, 8000))
+  const BATCH = 100 // Gemini 임베딩 1회 최대 100개
   let lastErr = null
   for (const c of EMBED_CANDIDATES) {
     try {
-      const { embeddings } = await embedMany(buildOpts(c, { values }))
-      return embeddings
+      const all = []
+      for (let i = 0; i < values.length; i += BATCH) {
+        const { embeddings } = await embedMany(buildOpts(c, { values: values.slice(i, i + BATCH) }))
+        all.push(...embeddings)
+      }
+      return all
     } catch (e) { lastErr = e; continue }
   }
   throw lastErr || new Error('임베딩 모델 없음')
