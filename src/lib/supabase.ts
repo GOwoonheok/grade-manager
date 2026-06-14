@@ -10,7 +10,15 @@ if (!url || !anonKey) {
 }
 
 // 일반 클라이언트: 로그인 세션 유지
-export const supabase = createClient(url, anonKey)
+// 세션 지속/자동갱신을 명시적으로 보장(교수 권한이 갱신 시점에 풀리지 않도록).
+// storageKey는 기본값 유지 → 기존 로그인 세션 그대로 사용(강제 로그아웃 없음).
+export const supabase = createClient(url, anonKey, {
+  auth: {
+    persistSession: true,
+    autoRefreshToken: true,
+    detectSessionInUrl: false, // URL 기반 인증 미사용(경로 라우팅) → 불필요한 세션 파싱 방지
+  },
+})
 
 // 학생 등록용 보조 클라이언트: 세션을 저장하지 않음
 // 새 학생 signUp 시 우리 교수 세션이 바뀌지 않도록 분리
