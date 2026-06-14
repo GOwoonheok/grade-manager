@@ -52,7 +52,7 @@ export default function KnowledgeUpload() {
         <>
           <label className={`flex items-center justify-center gap-2 border-2 border-dashed rounded-xl p-5 cursor-pointer transition ${busy ? 'opacity-50 pointer-events-none' : 'border-gray-300 hover:border-indigo-400 hover:bg-indigo-50/30'}`}>
             <Upload size={18} className="text-gray-400" />
-            <span className="text-sm text-gray-600">{busy ? '처리 중…' : 'PDF 업로드 (텍스트형, 최대 ~4MB)'}</span>
+            <span className="text-sm text-gray-600">{busy ? '처리 중…' : 'PDF 업로드 (텍스트형, 최대 ~50MB)'}</span>
             <input type="file" accept="application/pdf,.pdf" onChange={onFile} disabled={busy} className="hidden" />
           </label>
           <p className="text-xs text-gray-400">※ HWP는 "PDF로 내보내기" 후 업로드 · 스캔(이미지) PDF는 글자 추출이 안 됩니다.</p>

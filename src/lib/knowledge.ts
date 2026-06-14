@@ -5,14 +5,23 @@ export async function ingestPdf(deckId: string, file: File): Promise<{ count: nu
   const { data: { session } } = await supabase.auth.getSession()
   const token = session?.access_token
   if (!token) throw new Error('로그인이 필요합니다')
-  const url = `/api/ingest?deckId=${encodeURIComponent(deckId)}&title=${encodeURIComponent(file.name)}`
-  const res = await fetch(url, {
+  // 1) Storage에 업로드 (≤50MB — Vercel 함수 4.5MB 한도 우회)
+  const path = `${deckId}/${crypto.randomUUID()}.pdf`
+  const { error: upErr } = await supabase.storage
+    .from('knowledge-docs')
+    .upload(path, file, { contentType: 'application/pdf', upsert: false })
+  if (upErr) throw new Error('업로드 실패: ' + upErr.message)
+  // 2) 함수가 Storage에서 받아 추출·임베딩 후 원본 삭제
+  const res = await fetch('/api/ingest', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/pdf', Authorization: `Bearer ${token}` },
-    body: file,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ deckId, title: file.name, path }),
   })
   const j = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error((j?.error || '업로드 실패') + (j?.detail ? `: ${j.detail}` : ''))
+  if (!res.ok) {
+    await supabase.storage.from('knowledge-docs').remove([path]).catch(() => {})
+    throw new Error((j?.error || '처리 실패') + (j?.detail ? `: ${j.detail}` : ''))
+  }
   return { count: j.count ?? 0, chars: j.chars ?? 0 }
 }
 
