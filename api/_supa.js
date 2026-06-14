@@ -19,7 +19,7 @@ export async function verifyProfessor(req) {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false },
   })
-  const { data: { user }, error } = await sb.auth.getUser()
+  const { data: { user }, error } = await sb.auth.getUser(token) // 토큰을 직접 검증(서버엔 세션 저장 없음)
   if (error || !user) return { ok: false, status: 401, reason: 'invalid-token' }
   const { data: isProf, error: e2 } = await sb.rpc('is_professor')
   if (e2) return { ok: false, status: 500, reason: 'rpc-failed' }
