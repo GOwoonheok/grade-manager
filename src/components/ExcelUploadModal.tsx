@@ -46,6 +46,7 @@ type Props = {
   mode: ExcelMode
   courseId: string
   latePerAbsent?: number // 출결 모드: 지각 N회=결석 1회 환산 기준
+  scoreLabel?: string // score 모드: 항목 표시명 override(4번째 항목의 과목별 라벨 등)
   onClose: () => void
   onDone: () => void
   roster: Pick<Student, 'student_number' | 'name'>[]
@@ -63,7 +64,9 @@ const REGISTER_HEADER_MAP: Record<string, keyof RegisterRow> = {
 
 const isScoreInRange = (n: number) => !isNaN(n) && n >= 0 && n <= 100
 
-export default function ExcelUploadModal({ open, mode, courseId, latePerAbsent = 3, onClose, onDone, roster }: Props) {
+export default function ExcelUploadModal({ open, mode, courseId, latePerAbsent = 3, scoreLabel, onClose, onDone, roster }: Props) {
+  // score 모드의 항목 표시명(4번째 항목은 과목별 라벨). 그 외엔 SCORE_LABEL 폴백.
+  const effScoreLabel = mode.kind === 'score' ? scoreLabel ?? SCORE_LABEL[mode.field] : ''
   const fileRef = useRef<HTMLInputElement>(null)
   const [registerRows, setRegisterRows] = useState<RegisterRow[]>([])
   const [scoreRows, setScoreRows] = useState<ScoreRow[]>([])
@@ -209,7 +212,7 @@ export default function ExcelUploadModal({ open, mode, courseId, latePerAbsent =
           for (const [key, val] of Object.entries(raw)) {
             const k = String(key).trim()
             if (k === '학번') r.student_number = String(val).trim()
-            else if (k === '점수' || k === SCORE_LABEL[mode.field]) {
+            else if (k === '점수' || k === effScoreLabel) {
               const s = String(val).trim()
               if (s === '') continue
               const n = Number(s)
@@ -354,14 +357,14 @@ export default function ExcelUploadModal({ open, mode, courseId, latePerAbsent =
       ? '엑셀 일괄 등록 (신규 학생)'
       : mode.kind === 'attendance'
       ? '출결 일괄 업로드 (출석/지각/결석)'
-      : `${SCORE_LABEL[mode.field]} 점수 일괄 업로드`
+      : `${effScoreLabel} 점수 일괄 업로드`
 
   const headerHint =
     mode.kind === 'register'
       ? '헤더: 이름 / 학과 / 학번 / 연락처 / 중간 / 기말 / 출석'
       : mode.kind === 'attendance'
       ? '헤더: 아이디(학번) / 출석 / 지각 / 결석 — 주차별 칸은 무시'
-      : `헤더: 학번 / 점수 (또는 ${SCORE_LABEL[mode.field]})`
+      : `헤더: 학번 / 점수 (또는 ${effScoreLabel})`
 
   const allRowsErrored =
     mode.kind === 'register'
@@ -410,7 +413,7 @@ export default function ExcelUploadModal({ open, mode, courseId, latePerAbsent =
               {mode.kind === 'score' && (
                 <button
                   type="button"
-                  onClick={() => downloadScoreTemplate(mode.field, roster)}
+                  onClick={() => downloadScoreTemplate(mode.field, roster, effScoreLabel)}
                   className="mt-3 flex items-center gap-1.5 text-sm text-indigo-600 hover:text-indigo-700 font-medium"
                 >
                   <Download size={16} />
@@ -521,7 +524,7 @@ export default function ExcelUploadModal({ open, mode, courseId, latePerAbsent =
                       <tr>
                         <th className="px-2 py-2 text-left">학번</th>
                         <th className="px-2 py-2 text-right">
-                          {SCORE_LABEL[mode.field]} 점수
+                          {effScoreLabel} 점수
                         </th>
                         <th className="px-2 py-2 text-left">상태</th>
                       </tr>

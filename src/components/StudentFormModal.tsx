@@ -13,6 +13,7 @@ type Props = {
   open: boolean
   courseId: string | null
   initial: EnrollmentRow | null
+  extraLabel?: string // 4번째 항목 표시명(토론/참여 등)
   onClose: () => void
   onSaved: () => void
 }
@@ -25,6 +26,7 @@ const empty = {
   midterm: '',
   final: '',
   attendance: '',
+  extra: '10', // 이번 학기 4번째 항목 기본 10점
 }
 type FormState = typeof empty
 
@@ -32,6 +34,7 @@ export default function StudentFormModal({
   open,
   courseId,
   initial,
+  extraLabel = '토론',
   onClose,
   onSaved,
 }: Props) {
@@ -52,6 +55,7 @@ export default function StudentFormModal({
         midterm: initial.midterm?.toString() ?? '',
         final: initial.final?.toString() ?? '',
         attendance: initial.attendance?.toString() ?? '',
+        extra: initial.extra?.toString() ?? '',
       })
     } else {
       setForm(empty)
@@ -92,7 +96,8 @@ export default function StudentFormModal({
     const m = parseScore(form.midterm, '중간')
     const f = parseScore(form.final, '기말')
     const a = parseScore(form.attendance, '출석')
-    const firstErr = m.error || f.error || a.error
+    const x = parseScore(form.extra, extraLabel)
+    const firstErr = m.error || f.error || a.error || x.error
     if (firstErr) {
       setError(firstErr)
       setSubmitting(false)
@@ -113,6 +118,7 @@ export default function StudentFormModal({
           midterm: m.value,
           final: f.value,
           attendance: a.value,
+          extra: x.value,
         })
       } else {
         if (!courseId) throw new Error('과목이 선택되지 않았습니다.')
@@ -124,6 +130,7 @@ export default function StudentFormModal({
           midterm: m.value,
           final: f.value,
           attendance: a.value,
+          extra: x.value,
         })
       }
       onSaved()
@@ -200,7 +207,7 @@ export default function StudentFormModal({
             />
           </Field>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <Field label={imgFlags.midterm ? '중간 (이미지)' : '중간'} hint="0~100">
               <input
                 type="number"
@@ -233,6 +240,18 @@ export default function StudentFormModal({
                 max="100"
                 value={form.attendance}
                 onChange={(e) => upd('attendance', e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
+                placeholder="-"
+              />
+            </Field>
+            <Field label={extraLabel} hint="0~100">
+              <input
+                type="number"
+                step="0.1"
+                min="0"
+                max="100"
+                value={form.extra}
+                onChange={(e) => upd('extra', e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
                 placeholder="-"
               />

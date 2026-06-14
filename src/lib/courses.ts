@@ -33,6 +33,8 @@ export async function createCourse(c: {
   midterm_weight: number
   final_weight: number
   attendance_weight: number
+  extra_weight: number
+  extra_label: string
 }): Promise<Course> {
   const {
     data: { user },
@@ -49,7 +51,13 @@ export async function createCourse(c: {
 
 export async function updateCourseWeights(
   courseId: string,
-  w: { midterm_weight: number; final_weight: number; attendance_weight: number },
+  w: {
+    midterm_weight: number
+    final_weight: number
+    attendance_weight: number
+    extra_weight: number
+    extra_label: string
+  },
 ): Promise<void> {
   const { error } = await supabase.from('courses').update(w).eq('id', courseId)
   if (error) throw error
@@ -106,7 +114,7 @@ export async function listEnrollments(courseId: string): Promise<EnrollmentRow[]
 
 export async function updateEnrollmentScores(
   id: string,
-  s: { midterm: number | null; final: number | null; attendance: number | null },
+  s: { midterm: number | null; final: number | null; attendance: number | null; extra: number | null },
 ): Promise<void> {
   const { error } = await supabase.from('enrollments').update(s).eq('id', id)
   if (error) throw error
@@ -182,6 +190,7 @@ export async function addStudentToCourse(
     midterm: number | null
     final: number | null
     attendance: number | null
+    extra?: number | null // 미지정 시 DB 기본값(10) 적용
   },
 ): Promise<void> {
   const sn = p.student_number.trim()
@@ -212,13 +221,22 @@ export async function addStudentToCourse(
     })
     if (e2) throw e2
   }
-  const { error: e3 } = await supabase.from('enrollments').insert({
+  const enrollRow: {
+    course_id: string
+    student_id: string
+    midterm: number | null
+    final: number | null
+    attendance: number | null
+    extra?: number | null
+  } = {
     course_id: courseId,
     student_id: studentId,
     midterm: p.midterm,
     final: p.final,
     attendance: p.attendance,
-  })
+  }
+  if (p.extra !== undefined) enrollRow.extra = p.extra // 미지정이면 컬럼 생략 → DB 기본값 10
+  const { error: e3 } = await supabase.from('enrollments').insert(enrollRow)
   if (e3) throw e3
 }
 

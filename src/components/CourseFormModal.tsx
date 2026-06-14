@@ -17,12 +17,14 @@ export default function CourseFormModal({
   const [m, setM] = useState('30')
   const [f, setF] = useState('40')
   const [a, setA] = useState('30')
+  const [x, setX] = useState('0') // 4번째 항목 가중치
+  const [xlabel, setXlabel] = useState('토론') // 4번째 항목 표시명
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   if (!open) return null
 
-  const sum = (Number(m) || 0) + (Number(f) || 0) + (Number(a) || 0)
+  const sum = (Number(m) || 0) + (Number(f) || 0) + (Number(a) || 0) + (Number(x) || 0)
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -44,6 +46,8 @@ export default function CourseFormModal({
         midterm_weight: Number(m),
         final_weight: Number(f),
         attendance_weight: Number(a),
+        extra_weight: Number(x) || 0,
+        extra_label: xlabel.trim() || '토론',
       })
       onCreated(c.id)
       onClose()
@@ -104,10 +108,11 @@ export default function CourseFormModal({
             <label className="block text-sm font-medium text-gray-700 mb-1">
               가중치 (합 100)
             </label>
-            <div className="flex items-end gap-2">
+            <div className="flex flex-wrap items-end gap-2">
               <WeightInput label="중간" value={m} onChange={setM} />
               <WeightInput label="기말" value={f} onChange={setF} />
-              <WeightInput label="출석/토론" value={a} onChange={setA} />
+              <WeightInput label="출석" value={a} onChange={setA} />
+              <WeightInput label={xlabel || '토론'} value={x} onChange={setX} />
               <span
                 className={`text-sm px-2 py-2 ${
                   Math.abs(sum - 100) < 0.01 ? 'text-emerald-700' : 'text-amber-700'
@@ -115,6 +120,15 @@ export default function CourseFormModal({
               >
                 합 {sum}
               </span>
+            </div>
+            <div className="mt-2">
+              <span className="block text-xs text-gray-500 mb-1">4번째 항목명 (예: 토론, 참여, 숙제)</span>
+              <input
+                type="text"
+                value={xlabel}
+                onChange={(e) => setXlabel(e.target.value)}
+                className="w-40 px-2 py-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm"
+              />
             </div>
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}

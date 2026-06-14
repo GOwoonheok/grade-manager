@@ -32,8 +32,10 @@ export default function StudentList({ rows, course, flags, grades, onEdit, onDel
         midterm_weight: course.midterm_weight,
         final_weight: course.final_weight,
         attendance_weight: course.attendance_weight,
+        extra_weight: course.extra_weight,
       }
     : null
+  const xlabel = course?.extra_label ?? '토론' // 4번째 항목 표시명
 
   return (
     <>
@@ -69,7 +71,7 @@ export default function StudentList({ rows, course, flags, grades, onEdit, onDel
                   </button>
                 </div>
               </div>
-              <div className="grid grid-cols-4 gap-2 text-center">
+              <div className="grid grid-cols-5 gap-2 text-center">
                 <MobileScore label="중간" value={r.midterm} hasImg={!!(s && f?.midterm)} onImg={() => s && onView(s.id, 'midterm', s.name)} />
                 <MobileScore label="기말" value={r.final} hasImg={!!(s && f?.final)} onImg={() => s && onView(s.id, 'final', s.name)} />
                 <MobileScore
@@ -81,6 +83,7 @@ export default function StudentList({ rows, course, flags, grades, onEdit, onDel
                       : undefined
                   }
                 />
+                <MobileScore label={xlabel} value={r.extra} />
                 <MobileScore label="최종" value={finalScore} highlight />
               </div>
             </div>
@@ -100,6 +103,7 @@ export default function StudentList({ rows, course, flags, grades, onEdit, onDel
             <th className="px-4 py-3 font-semibold text-right">중간</th>
             <th className="px-4 py-3 font-semibold text-right">기말</th>
             <th className="px-4 py-3 font-semibold text-right">출석</th>
+            <th className="px-4 py-3 font-semibold text-right">{xlabel}</th>
             <th className="px-4 py-3 font-semibold text-right">최종</th>
             <th className="px-4 py-3 font-semibold text-center">등급</th>
             <th className="px-4 py-3 font-semibold w-12"></th>
@@ -155,6 +159,7 @@ export default function StudentList({ rows, course, flags, grades, onEdit, onDel
                     </span>
                   )}
                 </td>
+                <td className="px-4 py-3 text-right tabular-nums text-gray-700">{r.extra ?? '-'}</td>
                 <td className="px-4 py-3 text-right tabular-nums font-semibold text-indigo-700">{finalScore ?? '-'}</td>
                 <td className="px-4 py-3 text-center">
                   {s?.student_number === '0001' ? (

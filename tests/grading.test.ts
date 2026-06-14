@@ -12,6 +12,31 @@ describe('calcFinalScore', () => {
     const v = calcFinalScore({ midterm: 77, final: 77, attendance: 77 }, { midterm_weight: 33, final_weight: 33, attendance_weight: 34 })
     expect(v).toBe(77)
   })
+  it('4번째 항목(extra) 가중 반영', () => {
+    // 40/40/10/10, 점수 90/80/100/50 → 36+32+10+5 = 83
+    expect(
+      calcFinalScore(
+        { midterm: 90, final: 80, attendance: 100, extra: 50 },
+        { midterm_weight: 40, final_weight: 40, attendance_weight: 10, extra_weight: 10 },
+      ),
+    ).toBe(83)
+  })
+  it('extra_weight 0이면 extra가 null이어도 최종 산출', () => {
+    expect(
+      calcFinalScore(
+        { midterm: 90, final: 80, attendance: 100, extra: null },
+        { midterm_weight: 30, final_weight: 40, attendance_weight: 30, extra_weight: 0 },
+      ),
+    ).toBe(89)
+  })
+  it('extra_weight>0인데 extra가 null이면 null', () => {
+    expect(
+      calcFinalScore(
+        { midterm: 90, final: 80, attendance: 100, extra: null },
+        { midterm_weight: 30, final_weight: 40, attendance_weight: 20, extra_weight: 10 },
+      ),
+    ).toBeNull()
+  })
 })
 
 describe('assignRelativeGrades', () => {

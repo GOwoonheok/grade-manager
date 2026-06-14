@@ -66,13 +66,18 @@ export type ClassStats = {
   total_count: number
 }
 
-export type ScoreField = 'midterm' | 'final' | 'attendance'
+export type ScoreField = 'midterm' | 'final' | 'attendance' | 'extra'
 
+// SCORE_LABEL은 정적 기본값. 4번째 항목('extra')의 실제 표시명은 과목별 courses.extra_label 사용.
 export const SCORE_LABEL: Record<ScoreField, string> = {
   midterm: '중간',
   final: '기말',
   attendance: '출석',
+  extra: '토론',
 }
+
+// 4번째 평가항목 표시명 기본값(과목에 extra_label 없을 때 폴백)
+export const EXTRA_LABEL_DEFAULT = '토론'
 
 // 채점 로직은 ./grading 으로 분리(단위 테스트 가능). 호환 위해 재노출.
 export { calcFinalScore, assignRelativeGrades, computeAttendanceScore } from './grading'
@@ -103,6 +108,8 @@ export type Course = {
   grade_c_ratio: number
   scores_published: boolean
   late_per_absent: number // 지각 N회 = 결석 1회 환산 기준 (기본 3, 024)
+  extra_weight: number // 4번째 평가항목 가중치 (기본 0, 025)
+  extra_label: string // 4번째 평가항목 표시명 (기본 '토론' → 다음 학기 '참여' 등, 025)
   created_at: string
 }
 
@@ -113,6 +120,7 @@ export type Enrollment = {
   midterm: number | null
   final: number | null
   attendance: number | null // 출석 점수(출석/지각/결석 횟수로 자동 계산)
+  extra: number | null // 4번째 항목 점수(토론/참여 등). 이번 학기 기본 10점 (025)
   // 출석 세부 횟수 (024). 출결 엑셀 업로드로 채움.
   att_present?: number | null
   att_late?: number | null

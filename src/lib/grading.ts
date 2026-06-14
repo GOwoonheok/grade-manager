@@ -20,16 +20,20 @@ export function computeAttendanceScore(
   return Math.max(0, Math.round(score * 100) / 100) // 0 미만 방지, 소수 둘째자리
 }
 
-// 가중치 적용 최종점수. 셋 중 하나라도 NULL이면 null.
+// 가중치 적용 최종점수. 중간/기말/출석 중 하나라도 NULL이면 null.
+// 4번째 항목(extra)은 가중치(extra_weight)>0 일 때만 필수(없으면 0 기여) — 하위호환 위해 선택적.
 export function calcFinalScore(
-  s: { midterm: number | null; final: number | null; attendance: number | null },
-  w: { midterm_weight: number; final_weight: number; attendance_weight: number },
+  s: { midterm: number | null; final: number | null; attendance: number | null; extra?: number | null },
+  w: { midterm_weight: number; final_weight: number; attendance_weight: number; extra_weight?: number },
 ): number | null {
   if (s.midterm == null || s.final == null || s.attendance == null) return null
+  const xw = w.extra_weight ?? 0
+  if (xw > 0 && s.extra == null) return null
   const total =
     s.midterm * w.midterm_weight +
     s.final * w.final_weight +
-    s.attendance * w.attendance_weight
+    s.attendance * w.attendance_weight +
+    (s.extra ?? 0) * xw
   return Math.round((total / 100) * 100) / 100 // 소수 둘째자리
 }
 

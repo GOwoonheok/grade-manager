@@ -116,6 +116,7 @@ export default function AdminPage() {
         midterm_weight: selectedCourse.midterm_weight,
         final_weight: selectedCourse.final_weight,
         attendance_weight: selectedCourse.attendance_weight,
+        extra_weight: selectedCourse.extra_weight,
       }
       arr.sort((a, b) => (calcFinalScore(b, w) ?? -1) - (calcFinalScore(a, w) ?? -1))
     } else {
@@ -135,6 +136,7 @@ export default function AdminPage() {
       midterm_weight: selectedCourse.midterm_weight,
       final_weight: selectedCourse.final_weight,
       attendance_weight: selectedCourse.attendance_weight,
+      extra_weight: selectedCourse.extra_weight,
     }
     return rows.filter((r) => r.student?.student_number !== '0001' && calcFinalScore(r, w) != null).length
   }, [rows, selectedCourse])
@@ -144,6 +146,7 @@ export default function AdminPage() {
       midterm_weight: selectedCourse.midterm_weight,
       final_weight: selectedCourse.final_weight,
       attendance_weight: selectedCourse.attendance_weight,
+      extra_weight: selectedCourse.extra_weight,
     }
     const items = rows.map((r) => ({
       id: r.id,
@@ -312,6 +315,7 @@ export default function AdminPage() {
                   <ExcelButton onClick={() => setExcelMode({ kind: 'score', field: 'midterm' })} label="중간 점수 업로드" />
                   <ExcelButton onClick={() => setExcelMode({ kind: 'score', field: 'final' })} label="기말 점수 업로드" />
                   <ExcelButton onClick={() => setExcelMode({ kind: 'score', field: 'attendance' })} label="출석 점수 업로드" />
+                  <ExcelButton onClick={() => setExcelMode({ kind: 'score', field: 'extra' })} label={`${selectedCourse?.extra_label ?? '토론'} 점수 업로드`} />
                   <ExcelButton onClick={() => setExcelMode({ kind: 'attendance' })} label="출결 업로드(출석/지각/결석)" />
                 </div>
               </div>
@@ -379,6 +383,7 @@ export default function AdminPage() {
       <StudentFormModal
         open={formOpen}
         courseId={courseId}
+        extraLabel={selectedCourse?.extra_label ?? '토론'}
         initial={editing}
         onClose={() => {
           setFormOpen(false)
@@ -425,6 +430,7 @@ export default function AdminPage() {
           mode={excelMode}
           courseId={courseId}
           latePerAbsent={selectedCourse?.late_per_absent ?? 3}
+          scoreLabel={selectedCourse?.extra_label ?? '토론'}
           roster={rows.flatMap((r) => (r.student ? [r.student] : []))}
           onClose={() => setExcelMode(null)}
           onDone={() => courseId && loadRoster(courseId)}
@@ -438,6 +444,8 @@ function WeightSettings({ course, eligibleCount, onSaved }: { course: Course; el
   const [m, setM] = useState('')
   const [f, setF] = useState('')
   const [a, setA] = useState('')
+  const [x, setX] = useState('') // 4번째 항목 가중치
+  const [xlabel, setXlabel] = useState('') // 4번째 항목 표시명(토론/참여 등)
   const [ga, setGa] = useState('')
   const [gb, setGb] = useState('')
   const [gc, setGc] = useState('')
@@ -449,6 +457,8 @@ function WeightSettings({ course, eligibleCount, onSaved }: { course: Course; el
     setM(course.midterm_weight.toString())
     setF(course.final_weight.toString())
     setA(course.attendance_weight.toString())
+    setX((course.extra_weight ?? 0).toString())
+    setXlabel(course.extra_label ?? '토론')
     setGa((course.grade_a_ratio ?? 30).toString())
     setGb((course.grade_b_ratio ?? 40).toString())
     setGc((course.grade_c_ratio ?? 30).toString())
@@ -456,7 +466,7 @@ function WeightSettings({ course, eligibleCount, onSaved }: { course: Course; el
     setMsg(null)
   }, [course])
 
-  const sum = (Number(m) || 0) + (Number(f) || 0) + (Number(a) || 0)
+  const sum = (Number(m) || 0) + (Number(f) || 0) + (Number(a) || 0) + (Number(x) || 0)
   const sumOk = Math.abs(sum - 100) < 0.01
   const cnt = (ratio: string) => Math.round((eligibleCount * (Number(ratio) || 0)) / 100)
   const aN = cnt(ga)
@@ -476,6 +486,8 @@ function WeightSettings({ course, eligibleCount, onSaved }: { course: Course; el
         midterm_weight: Number(m),
         final_weight: Number(f),
         attendance_weight: Number(a),
+        extra_weight: Number(x) || 0,
+        extra_label: xlabel.trim() || '토론',
       })
       await updateCourseGrades(course.id, {
         grade_a_ratio: Number(ga) || 0,
@@ -502,7 +514,18 @@ function WeightSettings({ course, eligibleCount, onSaved }: { course: Course; el
           </div>
           <WeightField label="중간" value={m} onChange={setM} />
           <WeightField label="기말" value={f} onChange={setF} />
-          <WeightField label="출석/토론" value={a} onChange={setA} />
+          <WeightField label="출석" value={a} onChange={setA} />
+          <WeightField label={xlabel || '토론'} value={x} onChange={setX} />
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">항목명</label>
+            <input
+              type="text"
+              value={xlabel}
+              onChange={(e) => setXlabel(e.target.value)}
+              title="4번째 평가항목 표시명 (예: 토론, 참여, 숙제)"
+              className="w-20 px-2 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none text-sm"
+            />
+          </div>
           <div
             className={`text-sm tabular-nums px-3 py-2 rounded-lg border ${
               sumOk
