@@ -27,8 +27,13 @@ export default function KnowledgeUpload() {
     if (!deckId) { setPending(0); return }
     countPending(deckId).then(setPending).catch(() => setPending(0))
   }
+  // 분야 변경: 이전 분야의 색인 루프 중단 + 화면 초기화(분야별로 명확히 구분)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { setMsg(null); load(); refreshPending() }, [deckId])
+  useEffect(() => {
+    cancelRef.current = true
+    setEmbedding(false); setEmbTotal(0); setEmbDone(0)
+    setMsg(null); load(); refreshPending()
+  }, [deckId])
 
   // 분당 ~90개씩 대기 청크 임베딩 (화면 열려있는 동안). 끝나거나 중지까지 반복.
   const runEmbed = async (id: string) => {
@@ -96,7 +101,7 @@ export default function KnowledgeUpload() {
 
   return (
     <div className="space-y-3">
-      <select value={deckId} onChange={(e) => setDeckId(e.target.value)} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white">
+      <select value={deckId} onChange={(e) => setDeckId(e.target.value)} disabled={busy} className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-white disabled:bg-gray-100">
         <option value="">분야 선택</option>
         {decks.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
       </select>
@@ -131,8 +136,12 @@ export default function KnowledgeUpload() {
 
           {msg && <p className="text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{msg}</p>}
 
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 pt-1 border-t border-gray-100">
+            <FileText size={13} className="text-gray-400" />
+            {decks.find((d) => d.id === deckId)?.name ?? ''} · 업로드 문서 {sources.length}개
+          </div>
           <div className="space-y-1.5">
-            {sources.length === 0 && <p className="text-sm text-gray-400">업로드된 문서가 없습니다.</p>}
+            {sources.length === 0 && <p className="text-sm text-gray-400">이 분야에 업로드된 문서가 없습니다.</p>}
             {sources.map((s) => (
               <div key={s.title} className="flex items-center justify-between bg-white border border-gray-200 rounded-lg px-3 py-2">
                 <span className="flex items-center gap-1.5 text-sm text-gray-800 min-w-0">

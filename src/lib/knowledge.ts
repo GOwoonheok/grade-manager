@@ -64,6 +64,16 @@ export async function countPending(deckId: string): Promise<number> {
   return count ?? 0
 }
 
+// 분야별 임베딩 완료 청크 수 (AI 상담에서 '근거 보유 분야' 표시용)
+export async function countEmbedded(deckId: string): Promise<number> {
+  const { count } = await supabase
+    .from('doc_chunks')
+    .select('id', { count: 'exact', head: true })
+    .eq('deck_id', deckId)
+    .not('embedding', 'is', null)
+  return count ?? 0
+}
+
 // 대기 청크 ~90개 임베딩 (분당 호출). { embedded, remaining, done }
 export async function embedPending(deckId: string): Promise<{ embedded: number; remaining: number; done: boolean }> {
   const { data: { session } } = await supabase.auth.getSession()

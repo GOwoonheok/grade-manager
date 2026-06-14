@@ -1,20 +1,37 @@
 import { useEffect, useRef, useState } from 'react'
 import { Send } from 'lucide-react'
 import { listDecks, type Deck } from '../lib/flashcards'
-import { askRag, type RagSource } from '../lib/knowledge'
+import { askRag, countEmbedded, listSources, type DocSource, type RagSource } from '../lib/knowledge'
 
 type Turn = { q: string; a: string; sources: RagSource[]; loading?: boolean }
 
-// B-2: 학습자료(카드+PDF) 근거 AI 질문답변 (무료 Gemini).
+// B-2: 학습자료(카드+PDF) 근거 AI 질문답변 (무료 Gemini). 분야 선택 시 임베딩된 근거 안내.
 export default function RagChat() {
   const [decks, setDecks] = useState<Deck[]>([])
+  const [counts, setCounts] = useState<Record<string, number>>({})
   const [deckId, setDeckId] = useState('') // '' = 전체
+  const [deckSources, setDeckSources] = useState<DocSource[]>([])
   const [input, setInput] = useState('')
   const [turns, setTurns] = useState<Turn[]>([])
   const [busy, setBusy] = useState(false)
   const endRef = useRef<HTMLDivElement>(null)
 
-  useEffect(() => { listDecks().then(setDecks).catch(() => {}) }, [])
+  useEffect(() => {
+    listDecks()
+      .then(async (ds) => {
+        setDecks(ds)
+        const entries = await Promise.all(ds.map(async (d) => [d.id, await countEmbedded(d.id)] as const))
+        setCounts(Object.fromEntries(entries))
+      })
+      .catch(() => {})
+  }, [])
+
+  // 분야 선택 시 그 분야의 근거 문서(PDF) 목록 표시
+  useEffect(() => {
+    if (!deckId) { setDeckSources([]); return }
+    listSources(deckId).then(setDeckSources).catch(() => setDeckSources([]))
+  }, [deckId])
+
   useEffect(() => { endRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [turns])
 
   const send = async () => {
@@ -33,12 +50,30 @@ export default function RagChat() {
     }
   }
 
+  const totalEmbedded = Object.values(counts).reduce((a, b) => a + b, 0)
+  const selCount = deckId ? (counts[deckId] || 0) : totalEmbedded
+
   return (
     <div className="flex flex-col" style={{ minHeight: '60vh' }}>
-      <select value={deckId} onChange={(e) => setDeckId(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg bg-white mb-3 text-sm">
-        <option value="">전체 분야에서 찾기</option>
-        {decks.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+      <select value={deckId} onChange={(e) => setDeckId(e.target.value)} className="px-3 py-2 border border-gray-300 rounded-lg bg-white mb-2 text-sm">
+        <option value="">전체 분야에서 찾기{totalEmbedded ? ` (${totalEmbedded}조각)` : ''}</option>
+        {decks.map((d) => (
+          <option key={d.id} value={d.id}>{d.name}{counts[d.id] ? ` (${counts[d.id]}조각)` : ' (자료없음)'}</option>
+        ))}
       </select>
+
+      {/* 선택 분야의 임베딩된 근거자료 안내 */}
+      <div className="mb-3 text-[11px]">
+        {selCount === 0 ? (
+          <p className="text-amber-600">
+            {deckId ? '이 분야는 아직 임베딩된 자료가 없습니다 (카드/PDF 임베딩 필요).' : '아직 임베딩된 자료가 없습니다 — 관리자가 카드/PDF를 임베딩하면 답할 수 있어요.'}
+          </p>
+        ) : (
+          <p className="text-gray-500">
+            📚 근거 {selCount}조각{deckId && deckSources.length > 0 ? ` · 문서: ${deckSources.map((s) => s.title).join(', ')}` : deckId ? ' · 카드 기반' : ''}
+          </p>
+        )}
+      </div>
 
       <div className="flex-1 space-y-3 overflow-y-auto mb-3">
         {turns.length === 0 && (
