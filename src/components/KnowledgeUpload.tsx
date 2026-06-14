@@ -1,7 +1,8 @@
-import { useEffect, useState, type ChangeEvent } from 'react'
+import { useEffect, useRef, useState, type ChangeEvent } from 'react'
 import { FileText, Trash2, Upload } from 'lucide-react'
 import { listDecks, type Deck } from '../lib/flashcards'
 import { deleteSource, ingestPdf, listSources, type DocSource } from '../lib/knowledge'
+import ProgressTimer from './ProgressTimer'
 
 // V2: 분야(deck)별 PDF 근거자료 업로드·관리. 임베딩되어 AI 생성·검색의 근거로 쓰임.
 export default function KnowledgeUpload() {
@@ -10,6 +11,8 @@ export default function KnowledgeUpload() {
   const [sources, setSources] = useState<DocSource[]>([])
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const [estSec, setEstSec] = useState(30)
+  const startRef = useRef(0)
 
   useEffect(() => { listDecks().then(setDecks).catch(() => {}) }, [])
   const load = () => {
@@ -23,11 +26,15 @@ export default function KnowledgeUpload() {
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file || !deckId) return
+    // 파일 크기 기반 예상 시간(초): 추출+청킹+임베딩. 카운트다운 표시용 추정치.
+    setEstSec(Math.min(120, Math.max(10, Math.round(8 + (file.size / 1048576) * 6))))
+    startRef.current = Date.now()
     setBusy(true)
-    setMsg('PDF 분석·임베딩 중… (수십 초 걸릴 수 있어요)')
+    setMsg(null)
     try {
       const { count, chars } = await ingestPdf(deckId, file)
-      setMsg(`"${file.name}" 저장 완료 — ${count}조각(${chars.toLocaleString()}자). 이제 AI 생성·검색 근거로 쓰입니다.`)
+      const took = Math.round((Date.now() - startRef.current) / 1000)
+      setMsg(`"${file.name}" 완료 — ${count}조각(${chars.toLocaleString()}자) · 총 ${took}초. 이제 AI 생성·검색 근거로 쓰입니다.`)
       load()
     } catch (err: any) {
       setMsg('실패: ' + (err?.message ?? err))
@@ -56,6 +63,7 @@ export default function KnowledgeUpload() {
             <input type="file" accept="application/pdf,.pdf" onChange={onFile} disabled={busy} className="hidden" />
           </label>
           <p className="text-xs text-gray-400">※ HWP는 "PDF로 내보내기" 후 업로드 · 스캔(이미지) PDF는 글자 추출이 안 됩니다.</p>
+          <ProgressTimer running={busy} estSec={estSec} label="PDF 분석·임베딩 중…" />
           {msg && <p className="text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{msg}</p>}
 
           <div className="space-y-1.5">

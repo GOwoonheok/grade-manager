@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Check, Database, Pencil, Plus, Sparkles, Trash2, X } from 'lucide-react'
 import { listCards, listDecks, listTopics, type Deck, type Topic } from '../lib/flashcards'
+import ProgressTimer from './ProgressTimer'
 import {
   createAiQuestions,
   createQuestion,
@@ -105,6 +106,7 @@ export default function QuizAdmin() {
           <Database size={15} />{embedBusy ? '임베딩 중...' : '이 분야 임베딩 생성/갱신'}
         </button>
       )}
+      <ProgressTimer running={embedBusy} estSec={25} label="카드 임베딩 중…" />
 
       {err && <p className="text-sm text-red-600">{err}</p>}
 
@@ -122,6 +124,7 @@ export default function QuizAdmin() {
               </div>
             )}
           </div>
+          <ProgressTimer running={aiBusy} estSec={15} label="AI 문제 생성 중…" />
           {aiMsg && <p className="text-xs text-gray-700 bg-gray-50 border border-gray-200 rounded-lg px-3 py-2">{aiMsg}</p>}
 
           {(adding || editing) && (
