@@ -5,6 +5,7 @@ export default function handler(req, res) {
   res.status(200).json({
     ok: true,
     service: 'smartpps-api',
+    rev: 'r3',
     time: new Date().toISOString(),
     env: {
       supabase: Boolean(
