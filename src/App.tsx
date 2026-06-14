@@ -2,6 +2,7 @@ import { lazy, Suspense } from 'react'
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './contexts/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
+import InstallPrompt from './components/InstallPrompt'
 
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const HomePage = lazy(() => import('./pages/HomePage'))
@@ -66,6 +67,7 @@ function App() {
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </Suspense>
+        <InstallPrompt />
       </BrowserRouter>
     </AuthProvider>
   )
