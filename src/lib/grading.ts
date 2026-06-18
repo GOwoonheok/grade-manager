@@ -60,3 +60,64 @@ export function assignRelativeGrades(
   }
   return out
 }
+
+// 원점수 × 비율(가중치) = 반영(가중) 점수. 원점수 NULL이면 null. 소수 둘째자리.
+// 예: weightedScore(88, 40) = 35.2  (88점 × 40% → 40점 만점 중 35.2점 반영)
+export function weightedScore(raw: number | null, weight: number): number | null {
+  if (raw == null) return null
+  return Math.round(raw * weight) / 100
+}
+
+// 성적표(엑셀) 2차원 배열 — 헤더 + 학생 행. supabase 런타임 비의존 → 단위 테스트 가능.
+// 규칙(요청 사양):
+//  - 각 항목 셀 = 반영점수(원점수×비율). 네 항목의 합 = 최종(최대 100점).
+//  - 최종 = calcFinalScore (대시보드 '최종'과 동일 값). 점수 미입력 항목·최종은 빈칸('').
+//  - 학번 '0001'(가상인물) 제외, 학번 오름차순.
+//  - grades: enrollment id → 상대평가 등급(A/B/C). 없으면 빈칸.
+export type ReportStudentRow = {
+  id: string
+  studentNumber: string
+  name: string
+  midterm: number | null
+  final: number | null
+  attendance: number | null
+  extra: number | null
+}
+export type ReportWeights = {
+  midterm_weight: number
+  final_weight: number
+  attendance_weight: number
+  extra_weight: number
+}
+export function buildGradeReportRows(
+  students: ReportStudentRow[],
+  w: ReportWeights,
+  extraLabel: string,
+  grades: Record<string, 'A' | 'B' | 'C'>,
+): (string | number)[][] {
+  const header = [
+    '학번',
+    '성명',
+    `중간(${w.midterm_weight}점)`,
+    `기말(${w.final_weight}점)`,
+    `출석(${w.attendance_weight}점)`,
+    `${extraLabel}(${w.extra_weight}점)`,
+    '최종(100점)',
+    '등급',
+  ]
+  const cell = (n: number | null): string | number => (n == null ? '' : n)
+  const body = students
+    .filter((s) => s.studentNumber !== '0001')
+    .sort((a, b) => a.studentNumber.localeCompare(b.studentNumber))
+    .map((s) => [
+      s.studentNumber,
+      s.name,
+      cell(weightedScore(s.midterm, w.midterm_weight)),
+      cell(weightedScore(s.final, w.final_weight)),
+      cell(weightedScore(s.attendance, w.attendance_weight)),
+      cell(weightedScore(s.extra, w.extra_weight)),
+      cell(calcFinalScore(s, w)),
+      grades[s.id] ?? '',
+    ])
+  return [header, ...body]
+}

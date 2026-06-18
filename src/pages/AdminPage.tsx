@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { ArrowUpDown, BookOpen, Calculator, ChevronLeft, ChevronRight, LogOut, Plus, Search, Upload, Users } from 'lucide-react'
+import { ArrowUpDown, BookOpen, Calculator, ChevronLeft, ChevronRight, Download, LogOut, Plus, Search, Upload, Users } from 'lucide-react'
 import { useAuth } from '../contexts/AuthContext'
 import { assignRelativeGrades, calcFinalScore, type Course, type ExamType } from '../lib/supabase'
 import {
@@ -14,6 +14,7 @@ import {
 } from '../lib/courses'
 import { getAnswerSheetFlags } from '../lib/answerSheets'
 import StudentList from '../components/StudentList'
+import { downloadGradeReport } from '../lib/gradeReport'
 import StudentFormModal from '../components/StudentFormModal'
 import AnswerSheetViewer from '../components/AnswerSheetViewer'
 import CourseFormModal from '../components/CourseFormModal'
@@ -169,6 +170,15 @@ export default function AdminPage() {
     }
   }
 
+  const handleDownloadReport = async () => {
+    if (!selectedCourse) return
+    try {
+      await downloadGradeReport(rows, selectedCourse, grades)
+    } catch (e: any) {
+      alert('성적표 다운로드 실패: ' + (e?.message ?? e))
+    }
+  }
+
   const handleAdd = () => {
     setEditing(null)
     setFormOpen(true)
@@ -300,6 +310,15 @@ export default function AdminPage() {
                   >
                     <ArrowUpDown size={16} />
                     {sortBy === 'final' ? '최종점수 ↓' : '학번 ↑'}
+                  </button>
+                  <button
+                    onClick={handleDownloadReport}
+                    disabled={!courseId || rows.length === 0}
+                    className="flex items-center justify-center gap-1.5 px-4 py-2 border border-indigo-600 text-indigo-700 hover:bg-indigo-50 disabled:opacity-40 rounded-lg font-medium whitespace-nowrap"
+                    title="전체 학생 성적표(비율 반영)를 엑셀로 내려받기"
+                  >
+                    <Download size={18} />
+                    성적표 다운로드
                   </button>
                   <button
                     onClick={handleAdd}
